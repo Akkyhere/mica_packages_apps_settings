@@ -77,4 +77,7 @@
    <string name="double_tap_screen_to_sleep_summary">Double tap an empty space on the lock screen to turn off the screen.</string>
    <string name="double_tap_screen_to_sleep_title">Double tap to turn off screen</string>
    <string name="keywords_double_tap_screen_to_sleep">double tap to sleep, lock screen</string>
+
+    <!-- Auto pin confirm -->
+    <string name="lock_screen_auto_pin_confirm_summary_custom">Unlock automatically if you input a correct PIN. This is slightly less secure than tapping Enter to confirm.</string>
 </resources>
