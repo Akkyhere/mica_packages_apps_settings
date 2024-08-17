@@ -28,4 +28,11 @@
     <!-- Copy to clipboard -->
     <string name="copied_to_clipboard">Copied to clipboard</string>
     <string name="longpress_to_clipboard">Long-press to copy</string>
+
+    <!-- Mica Lab Settings -->
+    <string name="lab_settings_title">Mica Lab</string>
+
+    <!-- Google Play Integrity Spoof -->
+    <string name="pi_spoof_title">Google Play Integrity spoof</string>
+    <string name="pi_spoof_summary">Spoof your device as different model for Google Play Integrity</string>
 </resources>
