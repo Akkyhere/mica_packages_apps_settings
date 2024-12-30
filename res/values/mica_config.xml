@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+
+    <!-- Power share thresholds -->
+    <integer name="config_minPowerShareThreshold">10</integer>
+    <integer name="config_maxPowerShareThreshold">50</integer>
+</resources>

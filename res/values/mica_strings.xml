@@ -43,4 +43,12 @@
    <!-- Smart 5G -->
     <string name="smart_5g_title">Smart 5G</string>
     <string name="smart_5g_summary">Automatically switch between 5G and 4G to reduce battery consumption</string>
+
+    <!-- Battery Share -->
+    <string name="keywords_battery_share">share, battery share</string>
+    <string name="battery_share_title">Battery Share</string>
+    <string name="battery_share_summary">Charge other devices by placing them on the back of your device</string>
+    <string name="battery_share_limit_title">Stop sharing battery when device reaches:</string>
+    <string name="battery_share_state_on">On</string>
+    <string name="battery_share_state_off">Off</string>
 </resources>

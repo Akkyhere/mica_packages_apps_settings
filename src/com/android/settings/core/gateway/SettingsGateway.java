@@ -116,6 +116,7 @@ import com.android.settings.display.darkmode.DarkModeSettingsFragment;
 import com.android.settings.dream.DreamSettings;
 import com.android.settings.enterprise.EnterprisePrivacySettings;
 import com.android.settings.fuelgauge.AdvancedPowerUsageDetail;
+import com.android.settings.fuelgauge.BatteryShareSettings;
 import com.android.settings.fuelgauge.batterysaver.BatterySaverScheduleSettings;
 import com.android.settings.fuelgauge.batterysaver.BatterySaverSettings;
 import com.android.settings.fuelgauge.batteryusage.PowerUsageAdvanced;
@@ -434,6 +435,7 @@ public class SettingsGateway {
             SupervisionDashboardFragment.class.getName(),
             SummarizationPreferenceFragment.class.getName(),
             SafetyCenterFragment.class.getName(),
+            BatteryShareSettings.class.getName(),
     };
 
     public static final String[] SETTINGS_FOR_RESTRICTED = {
@@ -482,5 +484,6 @@ public class SettingsGateway {
             Settings.MemtagPageActivity.class.getName(),
             Settings.NavigationModeSettingsActivity.class.getName(),
             Settings.ShadeSettingsActivity.class.getName(),
+            Settings.BatteryShareSettingsActivity.class.getName(),
     };
 }
