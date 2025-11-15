@@ -51,4 +51,7 @@
     <string name="battery_share_limit_title">Stop sharing battery when device reaches:</string>
     <string name="battery_share_state_on">On</string>
     <string name="battery_share_state_off">Off</string>
+
+    <!-- Mica -->
+    <string name="mica_version">MicaOS version</string>
 </resources>
