@@ -33,19 +33,15 @@ import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.content.Intent;
-import android.platform.test.annotations.RequiresFlagsDisabled;
-import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.safetycenter.SafetyEvent;
-import android.safetycenter.SafetySourceData;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.internal.widget.LockPatternUtils;
-import com.android.settings.flags.Flags;
 import com.android.settings.privatespace.PrivateSpaceSafetySource;
 import com.android.settings.testutils.FakeFeatureFactory;
 
@@ -211,7 +207,6 @@ public class SafetySourceBroadcastReceiverTest {
     }
 
     @Test
-    @RequiresFlagsDisabled(Flags.FLAG_BIOMETRICS_ONBOARDING_EDUCATION)
     public void onReceive_onRefresh_withBiometricsSourceId_setsBiometricData() {
         when(mSafetyCenterManagerWrapper.isEnabled(mApplicationContext)).thenReturn(true);
         Intent intent =
@@ -231,7 +226,6 @@ public class SafetySourceBroadcastReceiverTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_BIOMETRICS_ONBOARDING_EDUCATION)
     public void onReceive_onRefresh_withFaceUnlockSourceId_setsFaceUnlockData() {
         when(mSafetyCenterManagerWrapper.isEnabled(mApplicationContext)).thenReturn(true);
         Intent intent =
@@ -251,7 +245,25 @@ public class SafetySourceBroadcastReceiverTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_BIOMETRICS_ONBOARDING_EDUCATION)
+    public void onReceive_onRefresh_withWearUnlockSourceId_setsWearUnlockData() {
+        when(mSafetyCenterManagerWrapper.isEnabled(mApplicationContext)).thenReturn(true);
+        Intent intent =
+                new Intent()
+                        .setAction(ACTION_REFRESH_SAFETY_SOURCES)
+                        .putExtra(
+                                EXTRA_REFRESH_SAFETY_SOURCE_IDS,
+                                new String[] {WearSafetySource.SAFETY_SOURCE_ID})
+                        .putExtra(EXTRA_REFRESH_SAFETY_SOURCES_BROADCAST_ID, REFRESH_BROADCAST_ID);
+
+        new SafetySourceBroadcastReceiver().onReceive(mApplicationContext, intent);
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(mSafetyCenterManagerWrapper, times(1))
+                .setSafetySourceData(any(), captor.capture(), any(), any());
+
+        assertThat(captor.getValue()).isEqualTo(WearSafetySource.SAFETY_SOURCE_ID);
+    }
+
+    @Test
     public void onReceive_onRefresh_withFingerprintUnlockSourceId_setsFingerprintUnlockData() {
         when(mSafetyCenterManagerWrapper.isEnabled(mApplicationContext)).thenReturn(true);
         Intent intent =
@@ -293,30 +305,6 @@ public class SafetySourceBroadcastReceiverTest {
         assertThat(captor.getValue()).isEqualTo(PrivateSpaceSafetySource.SAFETY_SOURCE_ID);
     }
 
-    /** Tests that the PS source sets null data when it's disabled. */
-    @Test
-    public void onReceive_onRefresh_withPrivateSpaceFeatureDisabled_setsNullData() {
-        when(mSafetyCenterManagerWrapper.isEnabled(mApplicationContext)).thenReturn(true);
-        mSetFlagsRule.disableFlags(
-                android.os.Flags.FLAG_ALLOW_PRIVATE_PROFILE,
-                android.multiuser.Flags.FLAG_ENABLE_PRIVATE_SPACE_FEATURES);
-
-        Intent intent =
-                new Intent()
-                        .setAction(ACTION_REFRESH_SAFETY_SOURCES)
-                        .putExtra(
-                                EXTRA_REFRESH_SAFETY_SOURCE_IDS,
-                                new String[] {PrivateSpaceSafetySource.SAFETY_SOURCE_ID})
-                        .putExtra(EXTRA_REFRESH_SAFETY_SOURCES_BROADCAST_ID, REFRESH_BROADCAST_ID);
-
-        new SafetySourceBroadcastReceiver().onReceive(mApplicationContext, intent);
-        ArgumentCaptor<SafetySourceData> captor = ArgumentCaptor.forClass(SafetySourceData.class);
-        verify(mSafetyCenterManagerWrapper, times(1))
-                .setSafetySourceData(any(), any(), captor.capture(), any());
-
-        assertThat(captor.getValue()).isEqualTo(null);
-    }
-
     @Test
     public void onReceive_onBootCompleted_setsBootCompleteEvent() {
         when(mSafetyCenterManagerWrapper.isEnabled(mApplicationContext)).thenReturn(true);
@@ -332,46 +320,13 @@ public class SafetySourceBroadcastReceiverTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_BIOMETRICS_ONBOARDING_EDUCATION)
     public void onReceive_onBootCompleted_flagOn_sendsAllSafetySourcesData() {
         when(mSafetyCenterManagerWrapper.isEnabled(mApplicationContext)).thenReturn(true);
         Intent intent = new Intent().setAction(Intent.ACTION_BOOT_COMPLETED);
 
         new SafetySourceBroadcastReceiver().onReceive(mApplicationContext, intent);
         ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-        verify(mSafetyCenterManagerWrapper, times(4))
-                .setSafetySourceData(any(), captor.capture(), any(), any());
-        List<String> safetySourceIdList = captor.getAllValues();
-
-        assertThat(
-                        safetySourceIdList.stream()
-                                .anyMatch(id -> id.equals(LockScreenSafetySource.SAFETY_SOURCE_ID)))
-                .isTrue();
-        assertThat(
-                        safetySourceIdList.stream()
-                                .anyMatch(id -> id.equals(FaceSafetySource.SAFETY_SOURCE_ID)))
-                .isTrue();
-        assertThat(
-                        safetySourceIdList.stream()
-                                .anyMatch(
-                                        id -> id.equals(FingerprintSafetySource.SAFETY_SOURCE_ID)))
-                .isTrue();
-        assertThat(
-                        safetySourceIdList.stream()
-                                .anyMatch(
-                                        id -> id.equals(PrivateSpaceSafetySource.SAFETY_SOURCE_ID)))
-                .isTrue();
-    }
-
-    @Test
-    @RequiresFlagsDisabled(Flags.FLAG_BIOMETRICS_ONBOARDING_EDUCATION)
-    public void onReceive_onBootCompleted_flagOff_sendsAllSafetySourcesData() {
-        when(mSafetyCenterManagerWrapper.isEnabled(mApplicationContext)).thenReturn(true);
-        Intent intent = new Intent().setAction(Intent.ACTION_BOOT_COMPLETED);
-
-        new SafetySourceBroadcastReceiver().onReceive(mApplicationContext, intent);
-        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-        verify(mSafetyCenterManagerWrapper, times(3))
+        verify(mSafetyCenterManagerWrapper, times(7))
                 .setSafetySourceData(any(), captor.capture(), any(), any());
         List<String> safetySourceIdList = captor.getAllValues();
 
@@ -385,8 +340,26 @@ public class SafetySourceBroadcastReceiverTest {
                 .isTrue();
         assertThat(
                         safetySourceIdList.stream()
+                                .anyMatch(id -> id.equals(FaceSafetySource.SAFETY_SOURCE_ID)))
+                .isTrue();
+        assertThat(
+                        safetySourceIdList.stream()
+                                .anyMatch(
+                                        id -> id.equals(FingerprintSafetySource.SAFETY_SOURCE_ID)))
+                .isTrue();
+        assertThat(
+                        safetySourceIdList.stream()
+                                .anyMatch(
+                                        id -> id.equals(WearSafetySource.SAFETY_SOURCE_ID)))
+                .isTrue();
+        assertThat(
+                        safetySourceIdList.stream()
                                 .anyMatch(
                                         id -> id.equals(PrivateSpaceSafetySource.SAFETY_SOURCE_ID)))
+                .isTrue();
+        assertThat(
+                safetySourceIdList.stream()
+                        .anyMatch(id -> id.equals(IdentityCheckSafetySource.SAFETY_SOURCE_ID)))
                 .isTrue();
     }
 }

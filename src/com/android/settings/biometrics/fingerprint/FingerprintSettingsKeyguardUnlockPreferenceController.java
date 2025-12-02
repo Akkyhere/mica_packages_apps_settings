@@ -18,8 +18,10 @@ package com.android.settings.biometrics.fingerprint;
 
 import static android.provider.Settings.Secure.FINGERPRINT_KEYGUARD_ENABLED;
 
+import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.hardware.fingerprint.FingerprintManager;
+import android.os.UserManager;
 import android.provider.Settings;
 
 import androidx.annotation.NonNull;
@@ -36,11 +38,13 @@ public class FingerprintSettingsKeyguardUnlockPreferenceController
     private static final int DEFAULT = ON;
 
     private FingerprintManager mFingerprintManager;
+    private UserManager mUserManager;
 
     public FingerprintSettingsKeyguardUnlockPreferenceController(
             @NonNull Context context, @NonNull String key) {
         super(context, key);
         mFingerprintManager = Utils.getFingerprintManagerOrNull(context);
+        mUserManager = context.getSystemService(UserManager.class);
     }
 
     @Override
@@ -51,6 +55,8 @@ public class FingerprintSettingsKeyguardUnlockPreferenceController
 
     @Override
     public boolean setChecked(boolean isChecked) {
+        mMetricsFeatureProvider.action(mContext,
+                SettingsEnums.ACTION_FINGERPRINTS_ENABLED_ON_KEYGUARD_SETTINGS, isChecked);
         return Settings.Secure.putIntForUser(mContext.getContentResolver(),
                 FINGERPRINT_KEYGUARD_ENABLED, isChecked ? ON : OFF, getUserId());
     }
@@ -71,13 +77,13 @@ public class FingerprintSettingsKeyguardUnlockPreferenceController
 
     @Override
     public int getAvailabilityStatus() {
+        if (mUserManager.isManagedProfile(getUserId()) || !Utils.hasFingerprintHardware(mContext)) {
+            return UNSUPPORTED_ON_DEVICE;
+        }
         final ActiveUnlockStatusUtils activeUnlockStatusUtils =
                 new ActiveUnlockStatusUtils(mContext);
         if (activeUnlockStatusUtils.isAvailable()) {
             return getAvailabilityFromRestrictingAdmin();
-        }
-        if (!Utils.hasFingerprintHardware(mContext)) {
-            return UNSUPPORTED_ON_DEVICE;
         }
         return getAvailabilityFromRestrictingAdmin();
     }

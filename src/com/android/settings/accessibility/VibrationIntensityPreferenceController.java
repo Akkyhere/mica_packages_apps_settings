@@ -24,15 +24,16 @@ import androidx.preference.PreferenceScreen;
 
 import com.android.settings.R;
 import com.android.settings.core.SliderPreferenceController;
-import com.android.settings.widget.SeekBarPreference;
 import com.android.settingslib.core.lifecycle.LifecycleObserver;
 import com.android.settingslib.core.lifecycle.events.OnStart;
 import com.android.settingslib.core.lifecycle.events.OnStop;
+import com.android.settingslib.widget.SliderPreference;
 
 /**
  * Abstract preference controller for a vibration intensity setting, that displays multiple
  * intensity levels to the user as a slider.
  */
+// LINT.IfChange
 public abstract class VibrationIntensityPreferenceController extends SliderPreferenceController
         implements LifecycleObserver, OnStart, OnStop {
 
@@ -69,15 +70,17 @@ public abstract class VibrationIntensityPreferenceController extends SliderPrefe
     @Override
     public void displayPreference(PreferenceScreen screen) {
         super.displayPreference(screen);
-        final SeekBarPreference preference = screen.findPreference(getPreferenceKey());
+        final SliderPreference preference = screen.findPreference(getPreferenceKey());
         mSettingsContentObserver.onDisplayPreference(this, preference);
         preference.setEnabled(mPreferenceConfig.isPreferenceEnabled());
         preference.setSummaryProvider(unused -> mPreferenceConfig.getSummary());
         preference.setMin(getMin());
         preference.setMax(getMax());
+        preference.setSliderIncrement(1); // Discrete slider
+        preference.setTickVisible(true); // Show ticks on slider
         // Haptics previews played by the Settings app don't bypass user settings to be played.
         // The sliders continuously updates the intensity value so the previews can apply them.
-        preference.setContinuousUpdates(true);
+        preference.setUpdatesContinuously(true);
     }
 
     @Override
@@ -138,3 +141,4 @@ public abstract class VibrationIntensityPreferenceController extends SliderPrefe
         return position;
     }
 }
+// LINT.ThenChange(VibrationIntensitySliderPreference.kt)

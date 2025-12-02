@@ -19,7 +19,8 @@ import static org.mockito.Mockito.mock;
 
 import android.content.Context;
 
-import com.android.settings.accessibility.AccessibilityMetricsFeatureProvider;
+import com.android.settings.accessibility.AccessibilityFeedbackFeatureProvider;
+import com.android.settings.accessibility.AccessibilityPageIdFeatureProvider;
 import com.android.settings.accessibility.AccessibilitySearchFeatureProvider;
 import com.android.settings.accounts.AccountFeatureProvider;
 import com.android.settings.applications.ApplicationFeatureProvider;
@@ -27,8 +28,10 @@ import com.android.settings.biometrics.BiometricsFeatureProvider;
 import com.android.settings.biometrics.face.FaceFeatureProvider;
 import com.android.settings.biometrics.fingerprint.FingerprintFeatureProvider;
 import com.android.settings.bluetooth.BluetoothFeatureProvider;
+import com.android.settings.connecteddevice.audiosharing.AudioSharingFeatureProvider;
 import com.android.settings.connecteddevice.fastpair.FastPairFeatureProvider;
 import com.android.settings.connecteddevice.stylus.StylusFeatureProvider;
+import com.android.settings.connecteddevice.threadnetwork.ThreadNetworkFeatureProvider;
 import com.android.settings.dashboard.DashboardFeatureProvider;
 import com.android.settings.dashboard.suggestions.SuggestionFeatureProvider;
 import com.android.settings.display.DisplayFeatureProvider;
@@ -37,6 +40,7 @@ import com.android.settings.fuelgauge.BatterySettingsFeatureProvider;
 import com.android.settings.fuelgauge.BatteryStatusFeatureProvider;
 import com.android.settings.fuelgauge.PowerUsageFeatureProvider;
 import com.android.settings.homepage.contextualcards.ContextualCardFeatureProvider;
+import com.android.settings.i18n.RegionalCustomizationFeatureProvider;
 import com.android.settings.inputmethod.KeyboardSettingsFeatureProvider;
 import com.android.settings.localepicker.LocaleFeatureProvider;
 import com.android.settings.notification.syncacrossdevices.SyncAcrossDevicesFeatureProvider;
@@ -92,16 +96,20 @@ public class FakeFeatureFactory extends FeatureFactory {
     public WifiTrackerLibProvider wifiTrackerLibProvider;
     public SecuritySettingsFeatureProvider securitySettingsFeatureProvider;
     public AccessibilitySearchFeatureProvider mAccessibilitySearchFeatureProvider;
-    public AccessibilityMetricsFeatureProvider mAccessibilityMetricsFeatureProvider;
+    public AccessibilityPageIdFeatureProvider mAccessibilityPageIdFeatureProvider;
     public AdvancedVpnFeatureProvider mAdvancedVpnFeatureProvider;
     public WifiFeatureProvider mWifiFeatureProvider;
     public KeyboardSettingsFeatureProvider mKeyboardSettingsFeatureProvider;
     public StylusFeatureProvider mStylusFeatureProvider;
+    public ThreadNetworkFeatureProvider mThreadNetworkFeatureProvider;
     public OnboardingFeatureProvider mOnboardingFeatureProvider;
+    public RegionalCustomizationFeatureProvider mRegionalCustomizationFeatureProvider;
     public FastPairFeatureProvider mFastPairFeatureProvider;
     public PrivateSpaceLoginFeatureProvider mPrivateSpaceLoginFeatureProvider;
     public DisplayFeatureProvider mDisplayFeatureProvider;
     public SyncAcrossDevicesFeatureProvider mSyncAcrossDevicesFeatureProvider;
+    public AccessibilityFeedbackFeatureProvider mAccessibilityFeedbackFeatureProvider;
+    public AudioSharingFeatureProvider mAudioSharingFeatureProvider;
 
     /** Call this in {@code @Before} method of the test class to use fake factory. */
     public static FakeFeatureFactory setupForTest() {
@@ -144,16 +152,18 @@ public class FakeFeatureFactory extends FeatureFactory {
         wifiTrackerLibProvider = mock(WifiTrackerLibProvider.class);
         securitySettingsFeatureProvider = mock(SecuritySettingsFeatureProvider.class);
         mAccessibilitySearchFeatureProvider = mock(AccessibilitySearchFeatureProvider.class);
-        mAccessibilityMetricsFeatureProvider = mock(AccessibilityMetricsFeatureProvider.class);
+        mAccessibilityPageIdFeatureProvider = mock(AccessibilityPageIdFeatureProvider.class);
         mAdvancedVpnFeatureProvider = mock(AdvancedVpnFeatureProvider.class);
         mWifiFeatureProvider = mock(WifiFeatureProvider.class);
         mKeyboardSettingsFeatureProvider = mock(KeyboardSettingsFeatureProvider.class);
         mStylusFeatureProvider = mock(StylusFeatureProvider.class);
+        mThreadNetworkFeatureProvider = mock(ThreadNetworkFeatureProvider.class);
         mOnboardingFeatureProvider = mock(OnboardingFeatureProvider.class);
         mFastPairFeatureProvider = mock(FastPairFeatureProvider.class);
         mPrivateSpaceLoginFeatureProvider = mock(PrivateSpaceLoginFeatureProvider.class);
         mDisplayFeatureProvider = mock(DisplayFeatureProvider.class);
         mSyncAcrossDevicesFeatureProvider = mock(SyncAcrossDevicesFeatureProvider.class);
+        mAudioSharingFeatureProvider = mock(AudioSharingFeatureProvider.class);
     }
 
     @Override
@@ -293,8 +303,8 @@ public class FakeFeatureFactory extends FeatureFactory {
     }
 
     @Override
-    public AccessibilityMetricsFeatureProvider getAccessibilityMetricsFeatureProvider() {
-        return mAccessibilityMetricsFeatureProvider;
+    public AccessibilityPageIdFeatureProvider getAccessibilityPageIdFeatureProvider() {
+        return mAccessibilityPageIdFeatureProvider;
     }
 
     @Override
@@ -318,8 +328,18 @@ public class FakeFeatureFactory extends FeatureFactory {
     }
 
     @Override
+    public ThreadNetworkFeatureProvider getThreadNetworkFeatureProvider() {
+        return mThreadNetworkFeatureProvider;
+    }
+
+    @Override
     public OnboardingFeatureProvider getOnboardingFeatureProvider() {
         return mOnboardingFeatureProvider;
+    }
+
+    @Override
+    public RegionalCustomizationFeatureProvider getRegionalCustomizationFeatureProvider() {
+        return mRegionalCustomizationFeatureProvider;
     }
 
     @Override
@@ -340,5 +360,15 @@ public class FakeFeatureFactory extends FeatureFactory {
     @Override
     public SyncAcrossDevicesFeatureProvider getSyncAcrossDevicesFeatureProvider() {
         return mSyncAcrossDevicesFeatureProvider;
+    }
+
+    @Override
+    public AccessibilityFeedbackFeatureProvider getAccessibilityFeedbackFeatureProvider() {
+        return mAccessibilityFeedbackFeatureProvider;
+    }
+
+    @Override
+    public AudioSharingFeatureProvider getAudioSharingFeatureProvider() {
+        return mAudioSharingFeatureProvider;
     }
 }

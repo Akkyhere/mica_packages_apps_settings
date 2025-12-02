@@ -34,6 +34,7 @@ import android.app.settings.SettingsEnums;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothCsipSetCoordinator;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothLeAudio;
 import android.bluetooth.BluetoothLeBroadcastAssistant;
 import android.bluetooth.BluetoothLeBroadcastMetadata;
 import android.bluetooth.BluetoothLeBroadcastReceiveState;
@@ -42,10 +43,13 @@ import android.bluetooth.BluetoothStatusCodes;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.ContentObserver;
+import android.media.AudioManager;
 import android.os.Looper;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.provider.Settings;
+import android.util.Pair;
 import android.view.View;
 import android.widget.CheckedTextView;
 
@@ -79,6 +83,7 @@ import com.android.settingslib.flags.Flags;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 
 import org.junit.After;
 import org.junit.Before;
@@ -111,14 +116,8 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     private static final String PREF_KEY = "calls_and_alarms";
     private static final String TEST_DEVICE_NAME1 = "test1";
     private static final String TEST_DEVICE_NAME2 = "test2";
-    private static final String TEMP_BOND_METADATA =
-            "<TEMP_BOND_TYPE>le_audio_sharing</TEMP_BOND_TYPE>";
     private static final int TEST_DEVICE_GROUP_ID1 = 1;
     private static final int TEST_DEVICE_GROUP_ID2 = 2;
-    private static final int METADATA_FAST_PAIR_CUSTOMIZED_FIELDS = 25;
-
-    private static final String TEST_SETTINGS_KEY =
-            "bluetooth_le_broadcast_fallback_active_group_id";
 
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Rule public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
@@ -129,6 +128,7 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     @Mock private BluetoothEventManager mBtEventManager;
     @Mock private LocalBluetoothProfileManager mBtProfileManager;
     @Mock private CachedBluetoothDeviceManager mCacheManager;
+    @Mock private LeAudioProfile mLeaProfile;
     @Mock private LocalBluetoothLeBroadcast mBroadcast;
     @Mock private LocalBluetoothLeBroadcastAssistant mAssistant;
     @Mock private VolumeControlProfile mVolumeControl;
@@ -141,6 +141,7 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     @Mock private BluetoothLeBroadcastReceiveState mState;
     @Mock private BluetoothLeBroadcastMetadata mSource;
     @Mock private ContentResolver mContentResolver;
+    @Mock private AudioManager mAudioManager;
     private AudioSharingCallAudioPreferenceController mController;
     @Spy private ContentObserver mContentObserver;
     private ShadowBluetoothAdapter mShadowBluetoothAdapter;
@@ -173,9 +174,11 @@ public class AudioSharingCallAudioPreferenceControllerTest {
         when(btManager.getEventManager()).thenReturn(mBtEventManager);
         when(btManager.getProfileManager()).thenReturn(mBtProfileManager);
         when(btManager.getCachedDeviceManager()).thenReturn(mCacheManager);
+        when(mBtProfileManager.getLeAudioProfile()).thenReturn(mLeaProfile);
         when(mBtProfileManager.getLeAudioBroadcastProfile()).thenReturn(mBroadcast);
         when(mBtProfileManager.getLeAudioBroadcastAssistantProfile()).thenReturn(mAssistant);
         when(mBtProfileManager.getVolumeControlProfile()).thenReturn(mVolumeControl);
+        when(mLeaProfile.isProfileReady()).thenReturn(true);
         when(mBroadcast.isProfileReady()).thenReturn(true);
         when(mAssistant.isProfileReady()).thenReturn(true);
         when(mVolumeControl.isProfileReady()).thenReturn(true);
@@ -183,6 +186,7 @@ public class AudioSharingCallAudioPreferenceControllerTest {
         bisSyncState.add(1L);
         when(mState.getBisSyncState()).thenReturn(bisSyncState);
         when(mContext.getContentResolver()).thenReturn(mContentResolver);
+        when(mContext.getSystemService(AudioManager.class)).thenReturn(mAudioManager);
         when(mCachedDevice1.getDevice()).thenReturn(mDevice1);
         when(mCachedDevice1.getGroupId()).thenReturn(TEST_DEVICE_GROUP_ID1);
         when(mCachedDevice1.getName()).thenReturn(TEST_DEVICE_NAME1);
@@ -214,8 +218,8 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
     public void onStart_flagOff_doNothing() {
-        mSetFlagsRule.disableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
         mController.onStart(mLifecycleOwner);
         verify(mBtEventManager, never()).registerCallback(mController);
         verify(mContentResolver, never())
@@ -224,13 +228,15 @@ public class AudioSharingCallAudioPreferenceControllerTest {
                                 BluetoothUtils.getPrimaryGroupIdUriForBroadcast()),
                         false,
                         mContentObserver);
+        verify(mLeaProfile, never()).registerCallback(any(), any(BluetoothLeAudio.Callback.class));
         verify(mAssistant, never())
                 .registerServiceCallBack(any(), any(BluetoothLeBroadcastAssistant.Callback.class));
     }
 
     @Test
-    public void onStart_flagOn_registerCallback() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
+    @EnableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void onStart_flagOn_registerCallbackIncludingContentObserver() {
         mController.onStart(mLifecycleOwner);
         verify(mBtEventManager).registerCallback(mController);
         verify(mContentResolver)
@@ -239,58 +245,97 @@ public class AudioSharingCallAudioPreferenceControllerTest {
                                 BluetoothUtils.getPrimaryGroupIdUriForBroadcast()),
                         false,
                         mContentObserver);
+        verify(mLeaProfile, never()).registerCallback(any(), any(BluetoothLeAudio.Callback.class));
         verify(mAssistant)
                 .registerServiceCallBack(any(), any(BluetoothLeBroadcastAssistant.Callback.class));
     }
 
     @Test
+    @EnableFlags({
+        Flags.FLAG_ENABLE_LE_AUDIO_SHARING,
+        Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2
+    })
+    public void onStart_flagOn_registerCallbackIncludingLeaProfile() {
+        mController.onStart(mLifecycleOwner);
+        verify(mBtEventManager).registerCallback(mController);
+        verify(mContentResolver, never())
+                .registerContentObserver(
+                        Settings.Secure.getUriFor(
+                                BluetoothUtils.getPrimaryGroupIdUriForBroadcast()),
+                        false,
+                        mContentObserver);
+        verify(mLeaProfile).registerCallback(any(), any(BluetoothLeAudio.Callback.class));
+        verify(mAssistant)
+                .registerServiceCallBack(any(), any(BluetoothLeBroadcastAssistant.Callback.class));
+    }
+
+    @Test
+    @DisableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
     public void onStop_flagOff_doNothing() {
-        mSetFlagsRule.disableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
         mController.setCallbacksRegistered(true);
         mController.onStop(mLifecycleOwner);
         verify(mBtEventManager, never()).unregisterCallback(mController);
         verify(mContentResolver, never()).unregisterContentObserver(mContentObserver);
+        verify(mLeaProfile, never()).registerCallback(any(), any(BluetoothLeAudio.Callback.class));
         verify(mAssistant, never())
                 .unregisterServiceCallBack(any(BluetoothLeBroadcastAssistant.Callback.class));
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
     public void onStop_flagOn_notRegistered_doNothing() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
         mController.setCallbacksRegistered(false);
         mController.onStop(mLifecycleOwner);
         verify(mBtEventManager, never()).unregisterCallback(mController);
         verify(mContentResolver, never()).unregisterContentObserver(mContentObserver);
+        verify(mLeaProfile, never()).registerCallback(any(), any(BluetoothLeAudio.Callback.class));
         verify(mAssistant, never())
                 .unregisterServiceCallBack(any(BluetoothLeBroadcastAssistant.Callback.class));
     }
 
     @Test
-    public void onStop_flagOn_registered_unregisterCallback() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
+    @EnableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void onStop_flagOn_registered_unregisterCallbackIncludingContentObserver() {
         mController.setCallbacksRegistered(true);
         mController.onStop(mLifecycleOwner);
         verify(mBtEventManager).unregisterCallback(mController);
         verify(mContentResolver).unregisterContentObserver(mContentObserver);
+        verify(mLeaProfile, never()).unregisterCallback(any(BluetoothLeAudio.Callback.class));
         verify(mAssistant)
                 .unregisterServiceCallBack(any(BluetoothLeBroadcastAssistant.Callback.class));
     }
 
     @Test
+    @EnableFlags({
+        Flags.FLAG_ENABLE_LE_AUDIO_SHARING,
+        Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2
+    })
+    public void onStop_flagOn_registered_unregisterCallbackIncludingLeaProfile() {
+        mController.setCallbacksRegistered(true);
+        mController.onStop(mLifecycleOwner);
+        verify(mBtEventManager).unregisterCallback(mController);
+        verify(mContentResolver, never()).unregisterContentObserver(mContentObserver);
+        verify(mLeaProfile).unregisterCallback(any(BluetoothLeAudio.Callback.class));
+        verify(mAssistant)
+                .unregisterServiceCallBack(any(BluetoothLeBroadcastAssistant.Callback.class));
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
     public void getAvailabilityStatus_flagOn() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
         assertThat(mController.getAvailabilityStatus()).isEqualTo(AVAILABLE);
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
     public void getAvailabilityStatus_flagOff() {
-        mSetFlagsRule.disableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
         assertThat(mController.getAvailabilityStatus()).isEqualTo(UNSUPPORTED_ON_DEVICE);
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
     public void updateVisibility_flagOff_invisible() {
-        mSetFlagsRule.disableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         mController.displayPreference(mScreen);
         mController.updateVisibility();
@@ -299,8 +344,8 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
     public void updateVisibility_broadcastOffBluetoothOff_invisible() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
         when(mBroadcast.isEnabled(any())).thenReturn(false);
         mShadowBluetoothAdapter.setEnabled(false);
         mController.displayPreference(mScreen);
@@ -310,8 +355,8 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
     public void updateVisibility_broadcastOnBluetoothOff_invisible() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         mShadowBluetoothAdapter.setEnabled(false);
         mController.displayPreference(mScreen);
@@ -321,8 +366,8 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
     public void updateVisibility_broadcastOffBluetoothOn_invisible() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
         when(mBroadcast.isEnabled(any())).thenReturn(false);
         mController.displayPreference(mScreen);
         mController.updateVisibility();
@@ -331,8 +376,8 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING)
     public void updateVisibility_broadcastOnBluetoothOn_visible() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_LE_AUDIO_SHARING);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         mController.displayPreference(mScreen);
         mController.updateVisibility();
@@ -341,8 +386,9 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
-    public void onProfileConnectionStateChanged_noDeviceInSharing_updateSummary() {
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY, TEST_DEVICE_GROUP_ID1);
+    @EnableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void onProfileConnectionStateChanged_adoptApi_noDeviceInSharing_updateSummary() {
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup()).thenReturn(TEST_DEVICE_GROUP_ID1);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of());
         mController.displayPreference(mScreen);
@@ -358,8 +404,231 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void onFallbackDeviceChanged_adoptApi_updateSummary() {
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup()).thenReturn(TEST_DEVICE_GROUP_ID1);
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1));
+        when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+        mPreference.setSummary("test");
+
+        mController.mLeAudioCallback.onBroadcastToUnicastFallbackGroupChanged(
+                TEST_DEVICE_GROUP_ID1);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertThat(mPreference.getSummary().toString())
+                .isEqualTo(
+                        mContext.getString(
+                                R.string.audio_sharing_call_audio_description, TEST_DEVICE_NAME1));
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void onActiveDeviceChanged_adoptApi_updateSummary() {
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup())
+                .thenReturn(BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
+        when(mCachedDevice1.isActiveDevice(BluetoothProfile.LE_AUDIO)).thenReturn(true);
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1));
+        when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+        mPreference.setSummary("test");
+
+        mController.onActiveDeviceChanged(mCachedDevice1, BluetoothProfile.LE_AUDIO);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertThat(mPreference.getSummary().toString())
+                .isEqualTo(
+                        mContext.getString(
+                                R.string.audio_sharing_call_audio_description, TEST_DEVICE_NAME1));
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void displayPreference_adoptApi_fallbackDeviceInSharing_showCorrectSummary() {
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup()).thenReturn(TEST_DEVICE_GROUP_ID1);
+        when(mCachedDevice3.isActiveDevice(BluetoothProfile.LE_AUDIO)).thenReturn(true);
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices())
+                .thenReturn(ImmutableList.of(mDevice1, mDevice2, mDevice3));
+        when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertThat(mPreference.getSummary().toString())
+                .isEqualTo(
+                        mContext.getString(
+                                R.string.audio_sharing_call_audio_description, TEST_DEVICE_NAME1));
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void displayPreference_adoptApi_activeDeviceInSharing_showCorrectSummary() {
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup()).thenReturn(TEST_DEVICE_GROUP_ID2);
+        when(mCachedDevice1.isActiveDevice(BluetoothProfile.LE_AUDIO)).thenReturn(true);
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1, mDevice2));
+        when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertThat(mPreference.getSummary().toString())
+                .isEqualTo(
+                        mContext.getString(
+                                R.string.audio_sharing_call_audio_description, TEST_DEVICE_NAME1));
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void displayPreference_adoptApi_noFallbackDeviceOrActiveInSharing_showEmptySummary() {
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup()).thenReturn(TEST_DEVICE_GROUP_ID2);
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1, mDevice2));
+        when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertThat(mPreference.getSummary().toString()).isEmpty();
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void displayPreference_adoptApi_noFallbackOrActiveDevice_showEmptySummary() {
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup())
+                .thenReturn(BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of());
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertThat(mPreference.getSummary().toString()).isEmpty();
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void displayPreference_adoptApi_clickToShowCorrectDialog() {
+        AlertDialog latestAlertDialog = ShadowAlertDialogCompat.getLatestAlertDialog();
+        if (latestAlertDialog != null) {
+            latestAlertDialog.dismiss();
+            ShadowAlertDialogCompat.reset();
+        }
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup()).thenReturn(TEST_DEVICE_GROUP_ID1);
+        mShadowBluetoothAdapter.setMostRecentlyConnectedDevices(
+                List.of(mDevice1, mDevice2, mDevice3));
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices())
+                .thenReturn(ImmutableList.of(mDevice1, mDevice2, mDevice3));
+        when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
+        mController.init(mParentFragment);
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+        mPreference.performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        AlertDialog dialog = ShadowAlertDialogCompat.getLatestAlertDialog();
+        assertThat(dialog.isShowing()).isTrue();
+        assertThat(dialog.getListView().getCount()).isEqualTo(2);
+        ArrayList<View> outViews = new ArrayList<>();
+        dialog.getListView()
+                .findViewsWithText(outViews, TEST_DEVICE_NAME1, View.FIND_VIEWS_WITH_TEXT);
+        assertThat(outViews.size()).isEqualTo(1);
+        View view = Iterables.getOnlyElement(outViews);
+        assertThat(view instanceof CheckedTextView).isTrue();
+        assertThat(((CheckedTextView) view).isChecked()).isTrue();
+        verify(mFeatureFactory.metricsFeatureProvider)
+                .visible(
+                        /* context= */ eq(null),
+                        /* source= */ anyInt(),
+                        eq(SettingsEnums.DIALOG_AUDIO_SHARING_CALL_AUDIO),
+                        /* latency= */ anyInt());
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void testBluetoothLeBroadcastAssistantCallbacks_adoptApi_updateSummary() {
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup())
+                .thenReturn(BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of());
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertThat(mPreference.getSummary().toString()).isEmpty();
+
+        // onSourceAdded will update summary
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup()).thenReturn(TEST_DEVICE_GROUP_ID1);
+        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1));
+        when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
+        mController.mBroadcastAssistantCallback.onSourceAdded(
+                mDevice1, /* sourceId= */ 1, /* reason= */ 1);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertThat(mPreference.getSummary().toString())
+                .isEqualTo(
+                        mContext.getString(
+                                R.string.audio_sharing_call_audio_description, TEST_DEVICE_NAME1));
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void testBluetoothLeBroadcastAssistantCallbacks_adoptApi_doNothing() {
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup())
+                .thenReturn(BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of());
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertThat(mPreference.getSummary().toString()).isEmpty();
+
+        when(mLeaProfile.getBroadcastToUnicastFallbackGroup()).thenReturn(TEST_DEVICE_GROUP_ID1);
+        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1));
+        when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
+        mController.mBroadcastAssistantCallback.onSearchStarted(/* reason= */ 1);
+        mController.mBroadcastAssistantCallback.onSearchStartFailed(/* reason= */ 1);
+        mController.mBroadcastAssistantCallback.onSearchStopped(/* reason= */ 1);
+        mController.mBroadcastAssistantCallback.onSearchStopFailed(/* reason= */ 1);
+        mController.mBroadcastAssistantCallback.onSourceAddFailed(
+                mDevice1, mSource, /* reason= */ 1);
+        mController.mBroadcastAssistantCallback.onSourceRemoved(
+                mDevice1, /* sourceId= */ 1, /* reason= */ 1);
+        mController.mBroadcastAssistantCallback.onSourceRemoveFailed(
+                mDevice1, /* sourceId= */ 1, /* reason= */ 1);
+        mController.mBroadcastAssistantCallback.onSourceModified(
+                mDevice1, /* sourceId= */ 1, /* reason= */ 1);
+        mController.mBroadcastAssistantCallback.onSourceModifyFailed(
+                mDevice1, /* sourceId= */ 1, /* reason= */ 1);
+        mController.mBroadcastAssistantCallback.onSourceFound(mSource);
+        mController.mBroadcastAssistantCallback.onSourceLost(/* broadcastId= */ 1);
+        shadowOf(Looper.getMainLooper()).idle();
+        mController.mBroadcastAssistantCallback.onReceiveStateChanged(
+                mDevice1, /* sourceId= */ 1, mState);
+
+        // Above callbacks won't update summary.
+        assertThat(mPreference.getSummary().toString()).isEmpty();
+    }
+
+    @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void onProfileConnectionStateChanged_noDeviceInSharing_updateSummary() {
+        Settings.Secure.putInt(
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                TEST_DEVICE_GROUP_ID1);
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of());
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+        mPreference.setSummary("test");
+
+        mController.onProfileConnectionStateChanged(
+                mCachedDevice1,
+                BluetoothAdapter.STATE_DISCONNECTED,
+                BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertThat(mPreference.getSummary().toString()).isEmpty();
+    }
+
+    @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
     public void onFallbackDeviceChanged_updateSummary() {
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY, TEST_DEVICE_GROUP_ID1);
+        Settings.Secure.putInt(
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                TEST_DEVICE_GROUP_ID1);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1));
         when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
@@ -376,8 +645,11 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
     public void onActiveDeviceChanged_updateSummary() {
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY,
+        Settings.Secure.putInt(
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
                 BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
         when(mCachedDevice1.isActiveDevice(BluetoothProfile.LE_AUDIO)).thenReturn(true);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
@@ -396,8 +668,12 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
     public void displayPreference_fallbackDeviceInSharing_showCorrectSummary() {
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY, TEST_DEVICE_GROUP_ID1);
+        Settings.Secure.putInt(
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                TEST_DEVICE_GROUP_ID1);
         when(mCachedDevice3.isActiveDevice(BluetoothProfile.LE_AUDIO)).thenReturn(true);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         when(mAssistant.getAllConnectedDevices())
@@ -412,8 +688,12 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
     public void displayPreference_activeDeviceInSharing_showCorrectSummary() {
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY, TEST_DEVICE_GROUP_ID2);
+        Settings.Secure.putInt(
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                TEST_DEVICE_GROUP_ID2);
         when(mCachedDevice1.isActiveDevice(BluetoothProfile.LE_AUDIO)).thenReturn(true);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1, mDevice2));
@@ -421,13 +701,18 @@ public class AudioSharingCallAudioPreferenceControllerTest {
         mController.displayPreference(mScreen);
         shadowOf(Looper.getMainLooper()).idle();
         assertThat(mPreference.getSummary().toString())
-                .isEqualTo(mContext.getString(
-                        R.string.audio_sharing_call_audio_description, TEST_DEVICE_NAME1));
+                .isEqualTo(
+                        mContext.getString(
+                                R.string.audio_sharing_call_audio_description, TEST_DEVICE_NAME1));
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
     public void displayPreference_noFallbackDeviceOrActiveInSharing_showEmptySummary() {
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY, TEST_DEVICE_GROUP_ID2);
+        Settings.Secure.putInt(
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                TEST_DEVICE_GROUP_ID2);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1, mDevice2));
         when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
@@ -437,9 +722,12 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
     public void displayPreference_noFallbackOrActiveDevice_showEmptySummary() {
         Settings.Secure.putInt(
-                mContentResolver, TEST_SETTINGS_KEY, BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of());
         mController.displayPreference(mScreen);
@@ -448,35 +736,22 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_ENABLE_TEMPORARY_BOND_DEVICES_UI)
-    public void displayPreference_hasTemporaryBondDevice_doNotShow() {
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY, TEST_DEVICE_GROUP_ID1);
-        when(mCachedDevice1.isActiveDevice(BluetoothProfile.LE_AUDIO)).thenReturn(true);
-        when(mBroadcast.isEnabled(any())).thenReturn(true);
-        when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1, mDevice2));
-        when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
-        when(mDevice2.getMetadata(METADATA_FAST_PAIR_CUSTOMIZED_FIELDS)).thenReturn(
-                TEMP_BOND_METADATA.getBytes());
-
-        mController.displayPreference(mScreen);
-        shadowOf(Looper.getMainLooper()).idle();
-
-        assertThat(mController.mGroupedConnectedDevices).hasSize(0);
-    }
-
-    @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
     public void displayPreference_clickToShowCorrectDialog() {
         AlertDialog latestAlertDialog = ShadowAlertDialogCompat.getLatestAlertDialog();
         if (latestAlertDialog != null) {
             latestAlertDialog.dismiss();
             ShadowAlertDialogCompat.reset();
         }
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY, TEST_DEVICE_GROUP_ID1);
+        Settings.Secure.putInt(
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                TEST_DEVICE_GROUP_ID1);
         mShadowBluetoothAdapter.setMostRecentlyConnectedDevices(
                 List.of(mDevice1, mDevice2, mDevice3));
         when(mBroadcast.isEnabled(any())).thenReturn(true);
-        when(mAssistant.getAllConnectedDevices()).thenReturn(
-                ImmutableList.of(mDevice1, mDevice2, mDevice3));
+        when(mAssistant.getAllConnectedDevices())
+                .thenReturn(ImmutableList.of(mDevice1, mDevice2, mDevice3));
         when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
         mController.init(mParentFragment);
         mController.displayPreference(mScreen);
@@ -506,26 +781,59 @@ public class AudioSharingCallAudioPreferenceControllerTest {
         LeAudioProfile leAudioProfile = mock(LeAudioProfile.class);
         when(mBtProfileManager.getLeAudioProfile()).thenReturn(leAudioProfile);
 
-        // Perform click to switch call audio device by set active
-        mSetFlagsRule.disableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API);
+        // Perform click to switch call audio device with API
         int index = listView.findIndexOfItemContainingText(TEST_DEVICE_NAME2);
         listView.performItemClick(index);
         shadowOf(Looper.getMainLooper()).idle();
         assertThat(((CheckedTextView) view1).isChecked()).isFalse();
         assertThat(((CheckedTextView) view2).isChecked()).isTrue();
-        verify(mCachedDevice3).setActive();
-        verify(leAudioProfile, never()).setBroadcastToUnicastFallbackGroup(TEST_DEVICE_GROUP_ID2);
+        verify(mCachedDevice1, never()).setActive();
+        verify(leAudioProfile).setBroadcastToUnicastFallbackGroup(TEST_DEVICE_GROUP_ID2);
+    }
 
-        // Perform click to switch call audio device with API
-        mSetFlagsRule.enableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API);
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY, TEST_DEVICE_GROUP_ID2);
-        index = listView.findIndexOfItemContainingText(TEST_DEVICE_NAME1);
+    @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
+    public void displayPreference_clickDuringOngoingCall_setsFallbackAndActiveDevice() {
+        AlertDialog latestAlertDialog = ShadowAlertDialogCompat.getLatestAlertDialog();
+        if (latestAlertDialog != null) {
+            latestAlertDialog.dismiss();
+            ShadowAlertDialogCompat.reset();
+        }
+        Settings.Secure.putInt(
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                TEST_DEVICE_GROUP_ID1);
+        mShadowBluetoothAdapter.setMostRecentlyConnectedDevices(
+                List.of(mDevice1, mDevice2, mDevice3));
+        when(mBroadcast.isEnabled(any())).thenReturn(true);
+        when(mAssistant.getAllConnectedDevices())
+                .thenReturn(ImmutableList.of(mDevice1, mDevice2, mDevice3));
+        when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
+        mController.init(mParentFragment);
+        mController.displayPreference(mScreen);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        // Simulate an ongoing call
+        when(mAudioManager.getMode()).thenReturn(AudioManager.MODE_IN_CALL);
+        mController.onAudioModeChanged();
+
+        mPreference.performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        AlertDialog dialog = ShadowAlertDialogCompat.getLatestAlertDialog();
+        assertThat(dialog.isShowing()).isTrue();
+        ShadowListView listView = Shadows.shadowOf(dialog.getListView());
+
+        LeAudioProfile leAudioProfile = mock(LeAudioProfile.class);
+        when(mBtProfileManager.getLeAudioProfile()).thenReturn(leAudioProfile);
+
+        // Perform click to switch call audio device
+        int index = listView.findIndexOfItemContainingText(TEST_DEVICE_NAME2);
         listView.performItemClick(index);
         shadowOf(Looper.getMainLooper()).idle();
-        assertThat(((CheckedTextView) view1).isChecked()).isTrue();
-        assertThat(((CheckedTextView) view2).isChecked()).isFalse();
-        verify(mCachedDevice1, never()).setActive();
-        verify(leAudioProfile).setBroadcastToUnicastFallbackGroup(TEST_DEVICE_GROUP_ID1);
+
+        // Verify that both fallback group is set and the device is set to active
+        verify(leAudioProfile).setBroadcastToUnicastFallbackGroup(TEST_DEVICE_GROUP_ID2);
+        verify(mCachedDevice3).setActive();
     }
 
     @Test
@@ -533,13 +841,22 @@ public class AudioSharingCallAudioPreferenceControllerTest {
         mShadowBluetoothAdapter.setMostRecentlyConnectedDevices(
                 List.of(mDevice1, mDevice2, mDevice3));
         mController.logCallAudioDeviceChange(TEST_DEVICE_GROUP_ID1, mCachedDevice3);
+        ImmutableList<Pair<Integer, Object>> eventData =
+                ImmutableList.of(
+                        Pair.create(
+                                AudioSharingUtils.MetricKey.METRIC_KEY_DEVICE_CONNECTION_TYPE
+                                        .getId(),
+                                AudioSharingCallAudioPreferenceController.ChangeCallAudioType
+                                        .CONNECTED_EARLIER
+                                        .getName()),
+                        Pair.create(
+                                AudioSharingUtils.MetricKey.METRIC_KEY_DEVICE_IS_TEMP_BOND.getId(),
+                                false));
         verify(mFeatureFactory.metricsFeatureProvider)
                 .action(
                         mContext,
                         SettingsEnums.ACTION_AUDIO_SHARING_CHANGE_CALL_AUDIO,
-                        AudioSharingCallAudioPreferenceController.ChangeCallAudioType
-                                .CONNECTED_EARLIER
-                                .ordinal());
+                        eventData.toString());
     }
 
     @Test
@@ -547,31 +864,53 @@ public class AudioSharingCallAudioPreferenceControllerTest {
         mShadowBluetoothAdapter.setMostRecentlyConnectedDevices(
                 List.of(mDevice1, mDevice2, mDevice3));
         mController.logCallAudioDeviceChange(TEST_DEVICE_GROUP_ID2, mCachedDevice1);
+        ImmutableList<Pair<Integer, Object>> eventData =
+                ImmutableList.of(
+                        Pair.create(
+                                AudioSharingUtils.MetricKey.METRIC_KEY_DEVICE_CONNECTION_TYPE
+                                        .getId(),
+                                AudioSharingCallAudioPreferenceController.ChangeCallAudioType
+                                        .CONNECTED_LATER
+                                        .getName()),
+                        Pair.create(
+                                AudioSharingUtils.MetricKey.METRIC_KEY_DEVICE_IS_TEMP_BOND.getId(),
+                                false));
         verify(mFeatureFactory.metricsFeatureProvider)
                 .action(
                         mContext,
                         SettingsEnums.ACTION_AUDIO_SHARING_CHANGE_CALL_AUDIO,
-                        AudioSharingCallAudioPreferenceController.ChangeCallAudioType
-                                .CONNECTED_LATER
-                                .ordinal());
+                        eventData.toString());
     }
 
     @Test
     public void logCallAudioDeviceChange_deviceNotFoundInRecentList_unknownChangeType() {
         mShadowBluetoothAdapter.setMostRecentlyConnectedDevices(List.of(mDevice1, mDevice2));
         mController.logCallAudioDeviceChange(TEST_DEVICE_GROUP_ID1, mCachedDevice3);
+        ImmutableList<Pair<Integer, Object>> eventData =
+                ImmutableList.of(
+                        Pair.create(
+                                AudioSharingUtils.MetricKey.METRIC_KEY_DEVICE_CONNECTION_TYPE
+                                        .getId(),
+                                AudioSharingCallAudioPreferenceController.ChangeCallAudioType
+                                        .UNKNOWN
+                                        .getName()),
+                        Pair.create(
+                                AudioSharingUtils.MetricKey.METRIC_KEY_DEVICE_IS_TEMP_BOND.getId(),
+                                false));
         verify(mFeatureFactory.metricsFeatureProvider)
                 .action(
                         mContext,
                         SettingsEnums.ACTION_AUDIO_SHARING_CHANGE_CALL_AUDIO,
-                        AudioSharingCallAudioPreferenceController.ChangeCallAudioType.UNKNOWN
-                                .ordinal());
+                        eventData.toString());
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
     public void testBluetoothLeBroadcastAssistantCallbacks_updateSummary() {
         Settings.Secure.putInt(
-                mContentResolver, TEST_SETTINGS_KEY, BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of());
         mController.displayPreference(mScreen);
@@ -579,11 +918,14 @@ public class AudioSharingCallAudioPreferenceControllerTest {
         assertThat(mPreference.getSummary().toString()).isEmpty();
 
         // onSourceAdded will update summary
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY, TEST_DEVICE_GROUP_ID1);
+        Settings.Secure.putInt(
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                TEST_DEVICE_GROUP_ID1);
         when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1));
         when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
-        mController.mBroadcastAssistantCallback.onSourceAdded(mDevice1, /* sourceId= */
-                1, /* reason= */ 1);
+        mController.mBroadcastAssistantCallback.onSourceAdded(
+                mDevice1, /* sourceId= */ 1, /* reason= */ 1);
         shadowOf(Looper.getMainLooper()).idle();
         assertThat(mPreference.getSummary().toString())
                 .isEqualTo(
@@ -592,16 +934,22 @@ public class AudioSharingCallAudioPreferenceControllerTest {
     }
 
     @Test
+    @DisableFlags(Flags.FLAG_ADOPT_PRIMARY_GROUP_MANAGEMENT_API_V2)
     public void testBluetoothLeBroadcastAssistantCallbacks_doNothing() {
         Settings.Secure.putInt(
-                mContentResolver, TEST_SETTINGS_KEY, BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                BluetoothCsipSetCoordinator.GROUP_ID_INVALID);
         when(mBroadcast.isEnabled(any())).thenReturn(true);
         when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of());
         mController.displayPreference(mScreen);
         shadowOf(Looper.getMainLooper()).idle();
         assertThat(mPreference.getSummary().toString()).isEmpty();
 
-        Settings.Secure.putInt(mContentResolver, TEST_SETTINGS_KEY, TEST_DEVICE_GROUP_ID1);
+        Settings.Secure.putInt(
+                mContentResolver,
+                BluetoothUtils.getPrimaryGroupIdUriForBroadcast(),
+                TEST_DEVICE_GROUP_ID1);
         when(mAssistant.getAllConnectedDevices()).thenReturn(ImmutableList.of(mDevice1));
         when(mAssistant.getAllSources(any())).thenReturn(ImmutableList.of(mState));
         mController.mBroadcastAssistantCallback.onSearchStarted(/* reason= */ 1);
@@ -621,8 +969,8 @@ public class AudioSharingCallAudioPreferenceControllerTest {
         mController.mBroadcastAssistantCallback.onSourceFound(mSource);
         mController.mBroadcastAssistantCallback.onSourceLost(/* broadcastId= */ 1);
         shadowOf(Looper.getMainLooper()).idle();
-        mController.mBroadcastAssistantCallback.onReceiveStateChanged(mDevice1, /* sourceId= */ 1,
-                mState);
+        mController.mBroadcastAssistantCallback.onReceiveStateChanged(
+                mDevice1, /* sourceId= */ 1, mState);
 
         // Above callbacks won't update summary.
         assertThat(mPreference.getSummary().toString()).isEmpty();

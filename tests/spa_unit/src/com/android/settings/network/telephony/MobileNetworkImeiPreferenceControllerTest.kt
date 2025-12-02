@@ -17,6 +17,7 @@
 package com.android.settings.network.telephony
 
 import android.content.Context
+import android.os.UserManager
 import android.telephony.SubscriptionInfo
 import android.telephony.TelephonyManager
 import androidx.fragment.app.Fragment
@@ -48,6 +49,8 @@ import org.mockito.quality.Strictness
 class MobileNetworkImeiPreferenceControllerTest {
     private lateinit var mockSession: MockitoSession
 
+    private val mockUserManager = mock<UserManager>()
+
     private val mockViewModels =  mock<Lazy<SubscriptionInfoListViewModel>>()
     private val mockFragment = mock<Fragment>{
         val viewmodel = mockViewModels
@@ -66,7 +69,11 @@ class MobileNetworkImeiPreferenceControllerTest {
 
     private val context: Context = spy(ApplicationProvider.getApplicationContext()) {
         on { getSystemService(TelephonyManager::class.java) } doReturn mockTelephonyManager
+        on { getSystemService(Context.TELEPHONY_SERVICE) } doReturn mockTelephonyManager
+        on { getSystemService(UserManager::class.java) } doReturn mockUserManager
     }
+
+    private val spyResources = spy(context.resources)
 
     private val controller = MobileNetworkImeiPreferenceController(context, TEST_KEY)
     private val preference = Preference(context).apply { key = TEST_KEY }
@@ -80,6 +87,20 @@ class MobileNetworkImeiPreferenceControllerTest {
             .strictness(Strictness.LENIENT)
             .startMocking()
 
+        context.stub { on { resources } doReturn spyResources }
+
+        // By default, available
+        spyResources.stub {
+            on { getBoolean(R.bool.config_show_sim_info) } doReturn true
+        }
+        mockTelephonyManager.stub {
+            on { isDataCapable } doReturn true
+            on { isDeviceVoiceCapable } doReturn true
+        }
+        mockUserManager.stub {
+            on { isAdminUser } doReturn true
+        }
+
         preferenceScreen.addPreference(preference)
         controller.displayPreference(preferenceScreen)
     }
@@ -91,15 +112,13 @@ class MobileNetworkImeiPreferenceControllerTest {
 
     @Test
     fun refreshData_getImei_preferenceSummaryIsExpected() = runBlocking {
-        whenever(SubscriptionUtil.isSimHardwareVisible(context)).thenReturn(true)
         whenever(SubscriptionUtil.getActiveSubscriptions(any())).thenReturn(
             listOf(
                 SUB_INFO_1,
                 SUB_INFO_2
             )
         )
-        var mockSubId = 2
-        controller.init(mockFragment, mockSubId)
+        controller.init(mockFragment, SUB_ID_1)
         mockImei = "test imei"
         mockTelephonyManager.stub {
             on { imei } doReturn mockImei
@@ -112,15 +131,13 @@ class MobileNetworkImeiPreferenceControllerTest {
 
     @Test
     fun refreshData_getImeiTitle_showImei() = runBlocking {
-        whenever(SubscriptionUtil.isSimHardwareVisible(context)).thenReturn(true)
         whenever(SubscriptionUtil.getActiveSubscriptions(any())).thenReturn(
             listOf(
                 SUB_INFO_1,
                 SUB_INFO_2
             )
         )
-        var mockSubId = 2
-        controller.init(mockFragment, mockSubId)
+        controller.init(mockFragment, SUB_ID_2)
         mockImei = "test imei"
         mockTelephonyManager.stub {
             on { imei } doReturn mockImei
@@ -134,15 +151,13 @@ class MobileNetworkImeiPreferenceControllerTest {
 
     @Test
     fun refreshData_getPrimaryImeiTitle_showPrimaryImei() = runBlocking {
-        whenever(SubscriptionUtil.isSimHardwareVisible(context)).thenReturn(true)
         whenever(SubscriptionUtil.getActiveSubscriptions(any())).thenReturn(
             listOf(
                 SUB_INFO_1,
                 SUB_INFO_2
             )
         )
-        var mockSubId = 2
-        controller.init(mockFragment, mockSubId)
+        controller.init(mockFragment, SUB_ID_2)
         mockImei = "test imei"
         mockTelephonyManager.stub {
             on { imei } doReturn mockImei
@@ -155,26 +170,86 @@ class MobileNetworkImeiPreferenceControllerTest {
     }
 
     @Test
-    fun getAvailabilityStatus_notSimHardwareVisible() {
-        whenever(SubscriptionUtil.isSimHardwareVisible(context)).thenReturn(false)
+    fun getAvailabilityStatus_default_displayed() {
+        controller.init(mockFragment, SUB_ID_1)
+
+        // Use defaults from setup()
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.AVAILABLE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_notShowSimInfo_notDisplayed() {
+        controller.init(mockFragment, SUB_ID_1)
+        spyResources.stub {
+            on { getBoolean(R.bool.config_show_sim_info) } doReturn false
+        }
 
         val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.UNSUPPORTED_ON_DEVICE)
+    }
 
-        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.CONDITIONALLY_UNAVAILABLE)
+    @Test
+    fun getAvailabilityStatus_notVoiceCapable_notDataCapable_notDisplayed() {
+        controller.init(mockFragment, SUB_ID_1)
+        mockTelephonyManager.stub {
+            on { isDataCapable } doReturn false
+            on { isDeviceVoiceCapable } doReturn false
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.UNSUPPORTED_ON_DEVICE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_voiceCapable_notDataCapable_displayed() {
+        controller.init(mockFragment, SUB_ID_1)
+        mockTelephonyManager.stub {
+            on { isDataCapable } doReturn false
+            on { isDeviceVoiceCapable } doReturn true
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.AVAILABLE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_notVoiceCapable_dataCapable_displayed() {
+        controller.init(mockFragment, SUB_ID_1)
+        mockTelephonyManager.stub {
+            on { isDataCapable } doReturn true
+            on { isDeviceVoiceCapable } doReturn false
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.AVAILABLE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_notUserAdmin_notDisplayed() {
+        controller.init(mockFragment, SUB_ID_1)
+        mockUserManager.stub {
+            on { isAdminUser } doReturn false
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.DISABLED_FOR_USER)
     }
 
     private companion object {
         const val TEST_KEY = "test_key"
+        const val SUB_ID_1 = 1
+        const val SUB_ID_2 = 2
         const val DISPLAY_NAME_1 = "Sub 1"
         const val DISPLAY_NAME_2 = "Sub 2"
 
         val SUB_INFO_1: SubscriptionInfo = SubscriptionInfo.Builder().apply {
-            setId(1)
+            setId(SUB_ID_1)
             setDisplayName(DISPLAY_NAME_1)
         }.build()
 
         val SUB_INFO_2: SubscriptionInfo = SubscriptionInfo.Builder().apply {
-            setId(2)
+            setId(SUB_ID_2)
             setDisplayName(DISPLAY_NAME_2)
         }.build()
 

@@ -17,11 +17,17 @@
 package com.android.settings.biometrics.face;
 
 import android.app.admin.DevicePolicyManager;
+import android.app.admin.EnforcingAdmin;
+import android.app.admin.PolicyEnforcementInfo;
 import android.content.Context;
 
+import androidx.annotation.Nullable;
+
 import com.android.settings.core.TogglePreferenceController;
+import com.android.settings.overlay.FeatureFactory;
 import com.android.settingslib.RestrictedLockUtils.EnforcedAdmin;
 import com.android.settingslib.RestrictedLockUtilsInternal;
+import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 
 /**
  * Abstract base class for all face settings toggles.
@@ -29,9 +35,11 @@ import com.android.settingslib.RestrictedLockUtilsInternal;
 public abstract class FaceSettingsPreferenceController extends TogglePreferenceController {
 
     private int mUserId;
+    protected MetricsFeatureProvider mMetricsFeatureProvider;
 
     public FaceSettingsPreferenceController(Context context, String preferenceKey) {
         super(context, preferenceKey);
+        mMetricsFeatureProvider = FeatureFactory.getFeatureFactory().getMetricsFeatureProvider();
     }
 
     public void setUserId(int userId) {
@@ -45,6 +53,14 @@ public abstract class FaceSettingsPreferenceController extends TogglePreferenceC
     protected EnforcedAdmin getRestrictingAdmin() {
         return RestrictedLockUtilsInternal.checkIfKeyguardFeaturesDisabled(
                 mContext, DevicePolicyManager.KEYGUARD_DISABLE_FACE, mUserId);
+    }
+
+    @Nullable
+    protected EnforcingAdmin getEnforcingAdmin() {
+        PolicyEnforcementInfo info =
+                RestrictedLockUtilsInternal.getEnforcingAdminsForKeyguardFeatures(mContext,
+                        DevicePolicyManager.KEYGUARD_DISABLE_FACE, mUserId);
+        return info == null ? null : info.getMostImportantEnforcingAdmin();
     }
 
     @Override

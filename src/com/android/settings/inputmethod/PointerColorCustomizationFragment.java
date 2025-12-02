@@ -16,6 +16,7 @@
 
 package com.android.settings.inputmethod;
 
+import static com.android.settings.flags.Flags.touchpadSettingsDesignUpdate;
 import static com.android.settings.inputmethod.InputPeripheralsSettingsUtils.isMouse;
 import static com.android.settings.inputmethod.InputPeripheralsSettingsUtils.isTouchpad;
 
@@ -23,15 +24,18 @@ import android.app.settings.SettingsEnums;
 import android.content.Context;
 
 import com.android.settings.R;
-import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.search.BaseSearchIndexProvider;
 import com.android.settingslib.search.SearchIndexable;
 
 /** Settings for pointer and touchpad. */
 @SearchIndexable(forTarget = SearchIndexable.ALL & ~SearchIndexable.ARC)
-public class PointerColorCustomizationFragment extends DashboardFragment {
+public class PointerColorCustomizationFragment extends InputDeviceDashboardFragment {
 
     private static final String TAG = "PointerColorCustomizationFragment";
+
+    private static final int RES = touchpadSettingsDesignUpdate()
+            ? R.xml.accessibility_pointer_fill_and_stroke_customization :
+            R.xml.accessibility_pointer_color_customization;
 
     @Override
     public int getMetricsCategory() {
@@ -40,7 +44,7 @@ public class PointerColorCustomizationFragment extends DashboardFragment {
 
     @Override
     protected int getPreferenceScreenResId() {
-        return R.xml.accessibility_pointer_color_customization;
+        return RES;
     }
 
     @Override
@@ -50,10 +54,15 @@ public class PointerColorCustomizationFragment extends DashboardFragment {
 
 
     public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
-            new BaseSearchIndexProvider(R.xml.accessibility_pointer_color_customization) {
+            new BaseSearchIndexProvider(RES) {
                 @Override
                 protected boolean isPageSearchEnabled(Context context) {
                     return isTouchpad() || isMouse();
                 }
             };
+
+    @Override
+    protected boolean needToFinishEarly() {
+        return isMouseDetached() && isTouchpadDetached();
+    }
 }

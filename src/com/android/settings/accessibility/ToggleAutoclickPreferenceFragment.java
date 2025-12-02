@@ -16,10 +16,15 @@
 
 package com.android.settings.accessibility;
 
+import static com.android.internal.accessibility.AccessibilityShortcutController.AUTOCLICK_COMPONENT_NAME;
+
 import android.app.settings.SettingsEnums;
+import android.content.ComponentName;
+import android.content.Context;
+
+import androidx.annotation.NonNull;
 
 import com.android.settings.R;
-import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.search.BaseSearchIndexProvider;
 import com.android.settingslib.search.SearchIndexable;
 
@@ -28,9 +33,19 @@ import com.android.settingslib.search.SearchIndexable;
  * feature.
  */
 @SearchIndexable(forTarget = SearchIndexable.ALL & ~SearchIndexable.ARC)
-public class ToggleAutoclickPreferenceFragment extends DashboardFragment {
+public class ToggleAutoclickPreferenceFragment extends BaseSupportFragment {
 
     private static final String TAG = "AutoclickPrefFragment";
+
+    @NonNull
+    private ComponentName getFeatureComponentName() {
+        return AUTOCLICK_COMPONENT_NAME;
+    }
+
+    @NonNull
+    private CharSequence getFeatureName() {
+        return getText(R.string.accessibility_autoclick_preference_title);
+    }
 
     @Override
     public int getMetricsCategory() {
@@ -50,6 +65,28 @@ public class ToggleAutoclickPreferenceFragment extends DashboardFragment {
     @Override
     protected int getPreferenceScreenResId() {
         return R.xml.accessibility_autoclick_settings;
+    }
+
+    @Override
+    public void onAttach(@NonNull Context context) {
+        super.onAttach(context);
+
+        // Set up delay controller.
+        use(ToggleAutoclickDelayBeforeClickController.class).setFragment(this);
+
+        // Set up the main switch controller.
+        use(ToggleAutoclickMainSwitchPreferenceController.class).setFragment(this);
+
+        ToggleShortcutPreferenceController shortcutPreferenceController =
+                use(ToggleAutoclickShortcutPreferenceController.class);
+        if (shortcutPreferenceController != null) {
+            shortcutPreferenceController.initialize(
+                    getFeatureComponentName(),
+                    getChildFragmentManager(),
+                    getFeatureName(),
+                    getMetricsCategory()
+            );
+        }
     }
 
     public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =

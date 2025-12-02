@@ -26,16 +26,17 @@ import androidx.compose.runtime.produceState
 import com.android.settings.R
 import com.android.settings.applications.AppInfoBase
 import com.android.settings.notification.app.AppNotificationSettings
+import com.android.settings.spa.livedata.observeAsCallback
 import com.android.settings.spa.notification.SpinnerItem.Companion.toSpinnerItem
 import com.android.settingslib.spa.framework.util.asyncFilter
 import com.android.settingslib.spa.framework.util.asyncForEach
-import com.android.settingslib.spa.livedata.observeAsCallback
 import com.android.settingslib.spa.widget.ui.SpinnerOption
 import com.android.settingslib.spaprivileged.model.app.AppEntry
 import com.android.settingslib.spaprivileged.model.app.AppListModel
 import com.android.settingslib.spaprivileged.model.app.AppRecord
 import com.android.settingslib.spaprivileged.model.app.userId
 import com.android.settingslib.spaprivileged.template.app.AppListItemModel
+import com.android.settingslib.spaprivileged.template.app.AppListSwitchItem
 import com.android.settingslib.spaprivileged.template.app.AppListTwoTargetSwitchItem
 import com.android.settingslib.utils.StringUtil
 import kotlinx.coroutines.Dispatchers
@@ -47,11 +48,13 @@ import kotlinx.coroutines.withContext
 data class AppNotificationsRecord(
     override val app: ApplicationInfo,
     val sentState: NotificationSentState?,
+    val hasSentMsgNotification: Boolean,
     val controller: AppNotificationController,
 ) : AppRecord
 
 class AppNotificationsListModel(
     private val context: Context,
+    private val listType: ListType
 ) : AppListModel<AppNotificationsRecord> {
     private val repository = AppNotificationRepository(context)
     private val now = System.currentTimeMillis()
@@ -64,7 +67,8 @@ class AppNotificationsListModel(
                 AppNotificationsRecord(
                     app = app,
                     sentState = usageEvents[app.packageName],
-                    controller = AppNotificationController(repository, app),
+                    hasSentMsgNotification = repository.hasSentMessageNotification(app),
+                    controller = AppNotificationController(repository, app, listType),
                 )
             }
         }
@@ -73,11 +77,15 @@ class AppNotificationsListModel(
         userIdFlow: Flow<Int>, option: Int, recordListFlow: Flow<List<AppNotificationsRecord>>,
     ) = recordListFlow.map { recordList ->
         recordList.asyncFilter { record ->
-            when (option.toSpinnerItem()) {
-                SpinnerItem.MostRecent -> record.sentState != null
-                SpinnerItem.MostFrequent -> record.sentState != null
-                SpinnerItem.TurnedOff -> !record.controller.getEnabled()
-                else -> true
+            if (listType == ListType.ExcludeSummarization && !record.hasSentMsgNotification) {
+                false
+            } else {
+                when (option.toSpinnerItem()) {
+                    SpinnerItem.MostRecent -> record.sentState != null
+                    SpinnerItem.MostFrequent -> record.sentState != null
+                    SpinnerItem.TurnedOff -> !record.controller.getEnabled()
+                    else -> true
+                }
             }
         }
     }
@@ -104,10 +112,14 @@ class AppNotificationsListModel(
         }
 
     override fun getSpinnerOptions(recordList: List<AppNotificationsRecord>): List<SpinnerOption> {
-        val options = mutableListOf(SpinnerItem.AllApps, SpinnerItem.TurnedOff)
+        val options = mutableListOf(SpinnerItem.AllApps)
         if (recordList.isNotEmpty() && repository.isUserUnlocked(recordList[0].app.userId)) {
             options.add(0, SpinnerItem.MostRecent)
             options.add(1, SpinnerItem.MostFrequent)
+        }
+        if (!listType.equals(ListType.ExcludeSummarization)
+            && !listType.equals(ListType.ExcludeClassification)) {
+            options.add(SpinnerItem.TurnedOff)
         }
 
         return options.map {
@@ -129,17 +141,35 @@ class AppNotificationsListModel(
 
     @Composable
     override fun AppListItemModel<AppNotificationsRecord>.AppItem() {
-        val changeable by produceState(initialValue = false) {
-            withContext(Dispatchers.Default) {
-                value = repository.isChangeable(record.app)
+        when (listType) {
+            ListType.ExcludeSummarization -> {
+                AppListSwitchItem(
+                    checked = record.controller.isAllowed.observeAsCallback(),
+                    changeable = { true },
+                    onCheckedChange = record.controller::setAllowed,
+                )
+            }
+            ListType.ExcludeClassification -> {
+                AppListSwitchItem(
+                    checked = record.controller.isAllowed.observeAsCallback(),
+                    changeable = { true },
+                    onCheckedChange = record.controller::setAllowed,
+                )
+            }
+            else -> {
+                val changeable by produceState(initialValue = false) {
+                    withContext(Dispatchers.Default) {
+                        value = repository.isChangeable(record.app)
+                    }
+                }
+                AppListTwoTargetSwitchItem(
+                    onClick = { navigateToAppNotificationSettings(app = record.app) },
+                    checked = record.controller.isEnabled.observeAsCallback(),
+                    changeable = { changeable },
+                    onCheckedChange = record.controller::setEnabled,
+                )
             }
         }
-        AppListTwoTargetSwitchItem(
-            onClick = { navigateToAppNotificationSettings(app = record.app) },
-            checked = record.controller.isEnabled.observeAsCallback(),
-            changeable = { changeable },
-            onCheckedChange = record.controller::setEnabled,
-        )
     }
 
     private fun navigateToAppNotificationSettings(app: ApplicationInfo) {

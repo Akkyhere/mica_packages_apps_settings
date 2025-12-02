@@ -19,11 +19,11 @@ import android.Manifest
 import android.app.settings.SettingsEnums.ACTION_BATTERY_SAVER
 import android.content.Context
 import android.os.PowerManager
-import com.android.settings.PreferenceActionMetricsProvider
 import com.android.settings.R
 import com.android.settings.contract.KEY_BATTERY_SAVER
 import com.android.settings.fuelgauge.BatterySaverReceiver
 import com.android.settings.fuelgauge.BatterySaverReceiver.BatterySaverListener
+import com.android.settings.metrics.PreferenceActionMetricsProvider
 import com.android.settingslib.datastore.AbstractKeyedDataObservable
 import com.android.settingslib.datastore.KeyValueStore
 import com.android.settingslib.datastore.Permissions
@@ -31,10 +31,11 @@ import com.android.settingslib.fuelgauge.BatterySaverLogging.SAVER_ENABLED_SETTI
 import com.android.settingslib.fuelgauge.BatterySaverUtils
 import com.android.settingslib.fuelgauge.BatteryStatus
 import com.android.settingslib.fuelgauge.BatteryUtils
-import com.android.settingslib.metadata.MainSwitchPreference
+import com.android.settingslib.metadata.BooleanValuePreference
 import com.android.settingslib.metadata.PreferenceChangeReason
 import com.android.settingslib.metadata.ReadWritePermit
 import com.android.settingslib.metadata.SensitivityLevel
+import com.android.settingslib.widget.MainSwitchPreferenceBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -43,8 +44,13 @@ import kotlinx.coroutines.launch
 
 // LINT.IfChange
 class BatterySaverPreference :
-    MainSwitchPreference(KEY, R.string.battery_saver_master_switch_title),
-    PreferenceActionMetricsProvider {
+    BooleanValuePreference, MainSwitchPreferenceBinding, PreferenceActionMetricsProvider {
+
+    override val key
+        get() = KEY
+
+    override val title
+        get() = R.string.battery_saver_master_switch_title
 
     override val preferenceActionMetrics: Int
         get() = ACTION_BATTERY_SAVER

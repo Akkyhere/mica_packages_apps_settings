@@ -17,74 +17,53 @@
 package com.android.settings.fuelgauge;
 
 import android.content.Context;
-import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.View;
-import android.widget.TextView;
 
-import androidx.annotation.VisibleForTesting;
-import androidx.preference.Preference;
 import androidx.preference.PreferenceViewHolder;
 
 import com.android.settings.R;
+import com.android.settingslib.widget.GroupSectionDividerMixin;
+import com.android.settingslib.widget.SettingsThemeHelper;
 
 /** Custom preference for displaying the app power usage time. */
-public class PowerUsageTimePreference extends Preference {
+public class PowerUsageTimePreference extends WarningFramePreference
+        implements GroupSectionDividerMixin {
     private static final String TAG = "PowerUsageTimePreference";
 
-    @VisibleForTesting CharSequence mTimeTitle;
-    @VisibleForTesting CharSequence mTimeSummary;
-    @VisibleForTesting CharSequence mAnomalyHintText;
+    private final Context mContext;
+    private final int mNonBackgroundPaddingStart;
 
     public PowerUsageTimePreference(Context context, AttributeSet attrs) {
         super(context, attrs);
-        setLayoutResource(R.layout.power_usage_time);
-    }
-
-    void setTimeTitle(CharSequence timeTitle) {
-        if (!TextUtils.equals(mTimeTitle, timeTitle)) {
-            mTimeTitle = timeTitle;
-            notifyChanged();
-        }
-    }
-
-    void setTimeSummary(CharSequence timeSummary) {
-        if (!TextUtils.equals(mTimeSummary, timeSummary)) {
-            mTimeSummary = timeSummary;
-            notifyChanged();
-        }
-    }
-
-    void setAnomalyHint(CharSequence anomalyHintText) {
-        if (!TextUtils.equals(mAnomalyHintText, anomalyHintText)) {
-            mAnomalyHintText = anomalyHintText;
-            notifyChanged();
-        }
-    }
-
-    private void showAnomalyHint(PreferenceViewHolder view) {
-        if (TextUtils.isEmpty(mAnomalyHintText)) {
-            return;
-        }
-        final View anomalyHintView = view.findViewById(R.id.anomaly_hints);
-        if (anomalyHintView == null) {
-            return;
-        }
-        final TextView warningInfo = anomalyHintView.findViewById(R.id.warning_info);
-        if (warningInfo == null) {
-            return;
-        }
-        warningInfo.setText(mAnomalyHintText);
-        anomalyHintView.setVisibility(View.VISIBLE);
+        setSelectable(false);
+        mContext = context;
+        mNonBackgroundPaddingStart =
+                mContext.getResources()
+                        .getDimensionPixelSize(
+                                com.android.settingslib.widget.theme.R.dimen
+                                        .settingslib_expressive_space_extrasmall4);
     }
 
     @Override
     public void onBindViewHolder(PreferenceViewHolder view) {
         super.onBindViewHolder(view);
+        // Update padding start for non-background items.
+        if (SettingsThemeHelper.isExpressiveTheme(mContext)) {
+            addPaddingStartForNonBackgroundItem(view, R.id.preference_frame);
+            addPaddingStartForNonBackgroundItem(view, R.id.warning_chip_frame);
+        }
+    }
 
-        ((TextView) view.findViewById(R.id.time_title)).setText(mTimeTitle);
-        ((TextView) view.findViewById(R.id.time_summary)).setText(mTimeSummary);
-
-        showAnomalyHint(view);
+    private void addPaddingStartForNonBackgroundItem(PreferenceViewHolder viewHolder, int resId) {
+        final View view = viewHolder.findViewById(resId);
+        if (view == null) {
+            return;
+        }
+        view.setPadding(
+                view.getPaddingStart() + mNonBackgroundPaddingStart,
+                view.getPaddingTop(),
+                view.getPaddingEnd(),
+                view.getPaddingBottom());
     }
 }

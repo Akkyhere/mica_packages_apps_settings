@@ -46,15 +46,12 @@ import com.android.settings.core.BasePreferenceController;
 import com.android.settings.core.CategoryMixin.CategoryHandler;
 import com.android.settings.core.CategoryMixin.CategoryListener;
 import com.android.settings.core.PreferenceControllerListHelper;
-import com.android.settings.flags.Flags;
 import com.android.settings.overlay.FeatureFactory;
-import com.android.settings.restriction.UserRestrictionBindingHelper;
 import com.android.settingslib.PrimarySwitchPreference;
 import com.android.settingslib.core.AbstractPreferenceController;
 import com.android.settingslib.core.lifecycle.Lifecycle;
 import com.android.settingslib.drawer.DashboardCategory;
 import com.android.settingslib.drawer.Tile;
-import com.android.settingslib.preference.PreferenceScreenBindingHelper;
 import com.android.settingslib.preference.PreferenceScreenCreator;
 import com.android.settingslib.search.Indexable;
 
@@ -93,8 +90,6 @@ public abstract class DashboardFragment extends SettingsPreferenceFragment
     private DashboardTilePlaceholderPreferenceController mPlaceholderPreferenceController;
     private boolean mListeningToCategoryChange;
     private List<String> mSuppressInjectedTileKeys;
-
-    private @Nullable UserRestrictionBindingHelper mUserRestrictionBindingHelper;
 
     @Override
     public void onAttach(Context context) {
@@ -181,13 +176,6 @@ public abstract class DashboardFragment extends SettingsPreferenceFragment
             // Upon rotation configuration change we need to update preference states before any
             // editing dialog is recreated (that would happen before onResume is called).
             updatePreferenceStates();
-        }
-        if (isCatalystEnabled()) {
-            PreferenceScreenBindingHelper helper = getPreferenceScreenBindingHelper();
-            if (helper != null) {
-                mUserRestrictionBindingHelper = new UserRestrictionBindingHelper(requireContext(),
-                        helper);
-            }
         }
     }
 
@@ -297,15 +285,6 @@ public abstract class DashboardFragment extends SettingsPreferenceFragment
             }
             mListeningToCategoryChange = false;
         }
-    }
-
-    @Override
-    public void onDestroy() {
-        if (mUserRestrictionBindingHelper != null) {
-            mUserRestrictionBindingHelper.close();
-            mUserRestrictionBindingHelper = null;
-        }
-        super.onDestroy();
     }
 
     @Override
@@ -580,7 +559,7 @@ public abstract class DashboardFragment extends SettingsPreferenceFragment
     /**
      * Refresh preference items backed by DashboardCategory.
      */
-    private void refreshDashboardTiles(final String tag) {
+    protected void refreshDashboardTiles(final String tag) {
         final PreferenceScreen screen = getPreferenceScreen();
 
         final DashboardCategory category =
@@ -626,27 +605,15 @@ public abstract class DashboardFragment extends SettingsPreferenceFragment
                 observers = mDashboardFeatureProvider.bindPreferenceToTileAndGetObservers(
                         getActivity(), this, forceRoundedIcons, pref, tile, key,
                         mPlaceholderPreferenceController.getOrder());
-                if (Flags.dynamicInjectionCategory()) {
-                    if (tile.hasGroupKey()) {
-                        Preference group = screen.findPreference(tile.getGroupKey());
-                        if (group instanceof PreferenceCategory) {
-                            ((PreferenceCategory) group).addPreference(pref);
-                        } else {
-                            screen.addPreference(pref);
-                        }
+                if (tile.hasGroupKey()) {
+                    Preference group = screen.findPreference(tile.getGroupKey());
+                    if (group instanceof PreferenceCategory) {
+                        ((PreferenceCategory) group).addPreference(pref);
                     } else {
                         screen.addPreference(pref);
                     }
                 } else {
-                    if (tile.hasGroupKey()
-                            && mDashboardTilePrefKeys.containsKey(tile.getGroupKey())) {
-                        Preference group = screen.findPreference(tile.getGroupKey());
-                        if (group instanceof PreferenceCategory) {
-                            ((PreferenceCategory) group).addPreference(pref);
-                        }
-                    } else {
-                        screen.addPreference(pref);
-                    }
+                    screen.addPreference(pref);
                 }
                 registerDynamicDataObservers(observers);
                 mDashboardTilePrefKeys.put(key, observers);
@@ -661,14 +628,7 @@ public abstract class DashboardFragment extends SettingsPreferenceFragment
         for (Map.Entry<String, List<DynamicDataObserver>> entry : remove.entrySet()) {
             final String key = entry.getKey();
             mDashboardTilePrefKeys.remove(key);
-            if (Flags.dynamicInjectionCategory()) {
-                screen.removePreferenceRecursively(key);
-            } else {
-                Preference preference = screen.findPreference(key);
-                if (preference != null) {
-                    screen.removePreference(preference);
-                }
-            }
+            screen.removePreferenceRecursively(key);
             unregisterDynamicDataObservers(entry.getValue());
         }
 

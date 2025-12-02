@@ -24,22 +24,28 @@ import org.robolectric.annotation.Resetter;
 import org.robolectric.shadow.api.Shadow;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 @Implements(InputDevice.class)
 public class ShadowInputDevice extends org.robolectric.shadows.ShadowInputDevice {
-
-    public static int[] sDeviceIds;
-
     private static Map<Integer, InputDevice> sDeviceMap = new HashMap<>();
 
     private int mDeviceId;
 
     private int mSources;
 
+    private boolean mIsFullKeyboard;
+
     @Implementation
     protected static int[] getDeviceIds() {
-        return sDeviceIds;
+        Iterator<Integer> ids = sDeviceMap.keySet().iterator();
+        int[] deviceIds = new int[sDeviceMap.size()];
+        int i = 0;
+        while (ids.hasNext()) {
+            deviceIds[i++] = ids.next();
+        }
+        return deviceIds;
     }
 
     @Implementation
@@ -53,7 +59,6 @@ public class ShadowInputDevice extends org.robolectric.shadows.ShadowInputDevice
 
     @Resetter
     public static void reset() {
-        sDeviceIds = null;
         sDeviceMap.clear();
     }
 
@@ -62,15 +67,33 @@ public class ShadowInputDevice extends org.robolectric.shadows.ShadowInputDevice
         return mDeviceId;
     }
 
+    public void setId(int id) {
+        mDeviceId = id;
+    }
+
+    @Implementation
+    public int getSources() {
+        return mSources;
+    }
+
+    public void setSources(int sources) {
+        mSources = sources;
+    }
+
+    @Implementation
+    public boolean isFullKeyboard() {
+        return mIsFullKeyboard;
+    }
+
+    public void setFullKeyboard(boolean isFullKeyboard) {
+        mIsFullKeyboard = isFullKeyboard;
+    }
+
     public static InputDevice makeInputDevicebyId(int id) {
         final InputDevice inputDevice = Shadow.newInstanceOf(InputDevice.class);
         final ShadowInputDevice shadowInputDevice = Shadow.extract(inputDevice);
         shadowInputDevice.setId(id);
         return inputDevice;
-    }
-
-    public void setId(int id) {
-        mDeviceId = id;
     }
 
     public static InputDevice makeInputDevicebyIdWithSources(int id, int sources) {
@@ -81,12 +104,17 @@ public class ShadowInputDevice extends org.robolectric.shadows.ShadowInputDevice
         return inputDevice;
     }
 
-    @Implementation
-    public int getSources() {
-        return mSources;
-    }
-
-    public void setSources(int sources) {
-        mSources = sources;
+    /**
+     * Create a full keyboard input device shadow.
+     * @param id The ID to use. If the ID is < 1, the device is considered virtual.
+     * @return The shadow InputDevice
+     */
+    public static InputDevice makeFullKeyboardInputDevicebyId(int id) {
+        final InputDevice inputDevice = Shadow.newInstanceOf(InputDevice.class);
+        final ShadowInputDevice shadowInputDevice = Shadow.extract(inputDevice);
+        shadowInputDevice.setId(id);
+        shadowInputDevice.setFullKeyboard(true);
+        shadowInputDevice.setSources(InputDevice.SOURCE_KEYBOARD);
+        return inputDevice;
     }
 }

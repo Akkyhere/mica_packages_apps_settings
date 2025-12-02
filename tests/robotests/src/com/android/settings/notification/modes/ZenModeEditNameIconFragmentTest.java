@@ -27,9 +27,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.app.Activity;
-import android.app.Flags;
 import android.os.Bundle;
-import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.annotation.Nullable;
@@ -52,7 +50,6 @@ import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
 
 @RunWith(RobolectricTestRunner.class)
-@EnableFlags(Flags.FLAG_MODES_UI)
 public class ZenModeEditNameIconFragmentTest {
 
     @Rule
@@ -124,7 +121,7 @@ public class ZenModeEditNameIconFragmentTest {
         verify(mBackend).updateMode(captor.capture());
         ZenMode savedMode = captor.getValue();
         assertThat(savedMode.getName()).isEqualTo("A newer name");
-        assertThat(savedMode.getRule().getIconResId()).isEqualTo(
+        assertThat(savedMode.getIconKey().resId()).isEqualTo(
                 R.drawable.ic_zen_mode_type_theater);
 
         assertThat(mActivity.isFinishing()).isTrue();

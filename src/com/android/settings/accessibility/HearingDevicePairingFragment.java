@@ -55,8 +55,8 @@ import com.android.settingslib.bluetooth.BluetoothCallback;
 import com.android.settingslib.bluetooth.CachedBluetoothDevice;
 import com.android.settingslib.bluetooth.CachedBluetoothDeviceManager;
 import com.android.settingslib.bluetooth.HearingAidInfo;
-import com.android.settingslib.bluetooth.HearingAidStatsLogUtils;
 import com.android.settingslib.bluetooth.LocalBluetoothManager;
+import com.android.settingslib.bluetooth.hearingdevices.metrics.HearingDeviceStatsLogUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -75,6 +75,8 @@ public class HearingDevicePairingFragment extends RestrictedDashboardFragment im
     private static final String BLUETOOTH_SHOW_DEVICES_WITHOUT_NAMES_PROPERTY =
             "persist.bluetooth.showdeviceswithoutnames";
     private static final String KEY_AVAILABLE_HEARING_DEVICES = "available_hearing_devices";
+    // Flags data type from CSS 1.3 Flags
+    private static final int BT_DISCOVERABLE_MASK = 0x03;
 
     LocalBluetoothManager mLocalManager;
     @Nullable
@@ -206,7 +208,7 @@ public class HearingDevicePairingFragment extends RestrictedDashboardFragment im
                     .getAttribution(getActivity());
             final int bondEntry = AccessibilityStatsLogUtils.convertToHearingAidInfoBondEntry(
                     pageId);
-            HearingAidStatsLogUtils.setBondEntryForDevice(bondEntry, cachedDevice);
+            HearingDeviceStatsLogUtils.setBondEntryForDevice(bondEntry, cachedDevice);
         }
         if (mSelectedDevice != null) {
             BluetoothDevice device = cachedDevice.getDevice();
@@ -322,7 +324,7 @@ public class HearingDevicePairingFragment extends RestrictedDashboardFragment im
     };
 
     void handleLeScanResult(ScanResult result) {
-        if (mCachedDeviceManager == null) {
+        if (mCachedDeviceManager == null || !isDeviceDiscoverable(result)) {
             return;
         }
         final BluetoothDevice device = result.getDevice();
@@ -504,5 +506,14 @@ public class HearingDevicePairingFragment extends RestrictedDashboardFragment im
     void showBluetoothTurnedOnToast() {
         Toast.makeText(getContext(), R.string.connected_device_bluetooth_turned_on_toast,
                 Toast.LENGTH_SHORT).show();
+    }
+
+    boolean isDeviceDiscoverable(ScanResult result) {
+        final ScanRecord scanRecord = result.getScanRecord();
+        if (scanRecord == null) {
+            return false;
+        }
+        final int flags = scanRecord.getAdvertiseFlags();
+        return (flags & BT_DISCOVERABLE_MASK) != 0;
     }
 }

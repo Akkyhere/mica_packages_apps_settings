@@ -17,20 +17,24 @@
 package com.android.settings.inputmethod;
 
 import static com.android.settings.inputmethod.InputPeripheralsSettingsUtils.isTouchpad;
+import static com.android.settings.flags.Flags.touchpadSettingsDesignUpdate;
 
 import android.app.settings.SettingsEnums;
 import android.content.Context;
 
 import com.android.settings.R;
-import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.search.BaseSearchIndexProvider;
 import com.android.settingslib.search.SearchIndexable;
 
 /** Input settings for touchpad three finger tap. */
 @SearchIndexable(forTarget = SearchIndexable.ALL & ~SearchIndexable.ARC)
-public class TouchpadThreeFingerTapFragment extends DashboardFragment {
+public class TouchpadThreeFingerTapFragment extends InputDeviceDashboardFragment {
 
     private static final String TAG = "TouchpadThreeFingerTapFragment";
+
+    private static final int RES = touchpadSettingsDesignUpdate()
+            ? R.xml.input_touchpad_three_finger_tap_action :
+            R.xml.input_touchpad_three_finger_tap_customization;
 
     @Override
     public int getMetricsCategory() {
@@ -39,7 +43,7 @@ public class TouchpadThreeFingerTapFragment extends DashboardFragment {
 
     @Override
     protected int getPreferenceScreenResId() {
-        return R.xml.input_touchpad_three_finger_tap_customization;
+        return RES;
     }
 
     @Override
@@ -48,10 +52,15 @@ public class TouchpadThreeFingerTapFragment extends DashboardFragment {
     }
 
     public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
-            new BaseSearchIndexProvider(R.xml.input_touchpad_three_finger_tap_customization) {
+            new BaseSearchIndexProvider(RES) {
                 @Override
                 protected boolean isPageSearchEnabled(Context context) {
                     return isTouchpad();
                 }
             };
+
+    @Override
+    protected boolean needToFinishEarly() {
+        return isTouchpadDetached();
+    }
 }

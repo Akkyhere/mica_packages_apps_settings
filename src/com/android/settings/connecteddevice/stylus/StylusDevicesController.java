@@ -18,7 +18,6 @@ package com.android.settings.connecteddevice.stylus;
 
 import android.app.Dialog;
 import android.app.role.RoleManager;
-import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
@@ -30,13 +29,13 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.provider.Settings.Secure;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
@@ -88,13 +87,15 @@ public class StylusDevicesController extends AbstractPreferenceController implem
     private final CachedBluetoothDevice mCachedBluetoothDevice;
 
     @VisibleForTesting
+    @Nullable
     PreferenceCategory mPreferencesContainer;
 
     @VisibleForTesting
+    @Nullable
     Dialog mDialog;
 
-    public StylusDevicesController(Context context, InputDevice inputDevice,
-            CachedBluetoothDevice cachedBluetoothDevice, Lifecycle lifecycle) {
+    public StylusDevicesController(@NonNull Context context, @Nullable InputDevice inputDevice,
+            @Nullable CachedBluetoothDevice cachedBluetoothDevice, @NonNull Lifecycle lifecycle) {
         super(context);
         mInputDevice = inputDevice;
         mCachedBluetoothDevice = cachedBluetoothDevice;
@@ -105,7 +106,7 @@ public class StylusDevicesController extends AbstractPreferenceController implem
 
     @Override
     public boolean isAvailable() {
-        return isDeviceStylus(mInputDevice, mCachedBluetoothDevice);
+        return BluetoothUtils.isDeviceStylus(mInputDevice, mCachedBluetoothDevice);
     }
 
     @Nullable
@@ -366,32 +367,5 @@ public class StylusDevicesController extends AbstractPreferenceController implem
                 users,
                 createProfileDialogClickCallback(intent, users));
         mDialog.show();
-    }
-
-    /**
-     * Identifies whether a device is a stylus using the associated {@link InputDevice} or
-     * {@link CachedBluetoothDevice}.
-     *
-     * InputDevices are only available when the device is USI or Bluetooth-connected, whereas
-     * CachedBluetoothDevices are available for Bluetooth devices when connected or paired,
-     * so to handle all cases, both are needed.
-     *
-     * @param inputDevice           The associated input device of the stylus
-     * @param cachedBluetoothDevice The associated bluetooth device of the stylus
-     */
-    public static boolean isDeviceStylus(@Nullable InputDevice inputDevice,
-            @Nullable CachedBluetoothDevice cachedBluetoothDevice) {
-        if (inputDevice != null && inputDevice.supportsSource(InputDevice.SOURCE_STYLUS)) {
-            return true;
-        }
-
-        if (cachedBluetoothDevice != null) {
-            BluetoothDevice bluetoothDevice = cachedBluetoothDevice.getDevice();
-            String deviceType = BluetoothUtils.getStringMetaData(bluetoothDevice,
-                    BluetoothDevice.METADATA_DEVICE_TYPE);
-            return TextUtils.equals(deviceType, BluetoothDevice.DEVICE_TYPE_STYLUS);
-        }
-
-        return false;
     }
 }

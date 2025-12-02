@@ -36,6 +36,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.PreferenceScreen;
 import androidx.viewpager.widget.PagerAdapter;
@@ -53,6 +55,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+// LINT.IfChange
 @SuppressWarnings("WeakerAccess")
 @SearchIndexable
 public class ColorModePreferenceFragment extends RadioButtonPickerFragment {
@@ -213,8 +216,7 @@ public class ColorModePreferenceFragment extends RadioButtonPickerFragment {
         final Map<Integer, String> colorModesToSummaries =
                 ColorModeUtils.getColorModeMapping(mResources);
         final List<ColorModeCandidateInfo> candidates = new ArrayList<>();
-        for (int colorMode : mResources.getIntArray(
-                com.android.internal.R.array.config_availableColorModes)) {
+        for (int colorMode : ColorModeUtils.getAvailableColorModes(getContext())) {
             candidates.add(new ColorModeCandidateInfo(
                     colorModesToSummaries.get(colorMode),
                     getKeyForColorMode(colorMode),
@@ -239,6 +241,11 @@ public class ColorModePreferenceFragment extends RadioButtonPickerFragment {
             setColorMode(colorMode);
         }
         return true;
+    }
+
+    @Override
+    public @Nullable String getPreferenceScreenBindingKey(@NonNull Context context) {
+        return ColorModeScreen.KEY;
     }
 
     /**
@@ -390,10 +397,11 @@ public class ColorModePreferenceFragment extends RadioButtonPickerFragment {
 
                 @Override
                 protected boolean isPageSearchEnabled(Context context) {
-                    final int[] availableColorModes = context.getResources().getIntArray(
-                            com.android.internal.R.array.config_availableColorModes);
+                    final int[] availableColorModes =
+                            ColorModeUtils.getAvailableColorModes(context);
                     return availableColorModes != null && availableColorModes.length > 0
                             && !ColorDisplayManager.areAccessibilityTransformsEnabled(context);
                 }
             };
 }
+// LINT.ThenChange(ColorModeScreen.kt)

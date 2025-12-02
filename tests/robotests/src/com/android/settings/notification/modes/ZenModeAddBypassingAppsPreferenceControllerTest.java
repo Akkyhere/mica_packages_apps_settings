@@ -19,6 +19,7 @@ package com.android.settings.notification.modes;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -29,7 +30,7 @@ import android.app.NotificationChannel;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.ParceledListSlice;
-import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.FlagsParameterization;
 import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.fragment.app.Fragment;
@@ -46,22 +47,24 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.robolectric.RobolectricTestRunner;
+import org.robolectric.ParameterizedRobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-@RunWith(RobolectricTestRunner.class)
-@EnableFlags(Flags.FLAG_MODES_UI)
+@RunWith(ParameterizedRobolectricTestRunner.class)
 public class ZenModeAddBypassingAppsPreferenceControllerTest {
-
     @Rule
     public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     @Mock
     private NotificationBackend mBackend;
+    @Mock
+    private ZenHelperBackend mHelperBackend;
     @Mock
     private PreferenceCategory mPreferenceCategory;
     @Mock
@@ -69,13 +72,23 @@ public class ZenModeAddBypassingAppsPreferenceControllerTest {
     private ZenModeAddBypassingAppsPreferenceController mController;
     private Context mContext;
 
+    @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
+    public static List<FlagsParameterization> getParams() {
+        return FlagsParameterization.allCombinationsOf(
+                Flags.FLAG_NM_BINDER_PERF_GET_APPS_WITH_CHANNELS);
+    }
+
+    public ZenModeAddBypassingAppsPreferenceControllerTest(FlagsParameterization flags) {
+        mSetFlagsRule.setFlagsParameterization(flags);
+    }
+
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
         mContext = RuntimeEnvironment.application;
 
         mController = new ZenModeAddBypassingAppsPreferenceController(
-                mContext, null, mock(Fragment.class), mBackend);
+                mContext, null, mock(Fragment.class), mBackend, mHelperBackend);
         mController.mPreferenceCategory = mPreferenceCategory;
         mController.mApplicationsState = mApplicationState;
         mController.mPrefContext = mContext;
@@ -131,6 +144,12 @@ public class ZenModeAddBypassingAppsPreferenceControllerTest {
                 appWithChannelsNoneBypassing.info.packageName,
                 appWithChannelsNoneBypassing.info.uid))
                 .thenReturn(new ParceledListSlice<>(new ArrayList<>()));
+
+        // used when NM_BINDER_PERF_GET_APPS_WITH_CHANNELS flag is true
+        when(mBackend.getPackagesWithAnyChannels(anyInt())).thenReturn(
+                Set.of("appWithBypassingChannels", "appWithChannelsNoneBypassing"));
+        when(mHelperBackend.getPackagesBypassingDnd(anyInt())).thenReturn(
+                Map.of("appWithBypassingChannels", false));
 
         List<ApplicationsState.AppEntry> appEntries = new ArrayList<>();
         appEntries.add(appWithBypassingChannels);

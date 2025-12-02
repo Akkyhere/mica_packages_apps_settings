@@ -43,7 +43,6 @@ import com.google.common.annotations.VisibleForTesting;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.util.Locale;
 
 /**
  * Handling smooth migration to the new high contrast text appearance
@@ -134,15 +133,10 @@ public class HighContrastTextMigrationReceiver extends BroadcastReceiver {
     }
 
     private String getNotificationContentText(Context context) {
-        final String newName = context.getString(
-                R.string.accessibility_toggle_maximize_text_contrast_preference_title);
-        final String oldName = context.getString(
-                R.string.accessibility_toggle_high_text_contrast_preference_title)
-                .toLowerCase(Locale.getDefault());
         final String settingsAppName = context.getString(R.string.settings_label);
         return context.getString(
-                R.string.accessibility_notification_high_contrast_text_body,
-                newName, oldName, settingsAppName);
+                R.string.accessibility_notification_high_contrast_text_body_message,
+                settingsAppName);
     }
 
     private void showNotification(Context context) {
@@ -199,7 +193,7 @@ public class HighContrastTextMigrationReceiver extends BroadcastReceiver {
         settingsIntent.setPackage(context.getPackageName());
         Bundle fragmentArgs = new Bundle();
         fragmentArgs.putString(EXTRA_FRAGMENT_ARG_KEY,
-                TextReadingPreferenceFragment.HIGH_TEXT_CONTRAST_KEY);
+                Settings.Secure.ACCESSIBILITY_HIGH_TEXT_CONTRAST_ENABLED);
         fragmentArgs.putInt(TextReadingPreferenceFragment.EXTRA_LAUNCHED_FROM,
                 TextReadingPreferenceFragment.EntryPoint.HIGH_CONTRAST_TEXT_NOTIFICATION);
         settingsIntent.putExtra(EXTRA_SHOW_FRAGMENT_ARGUMENTS, fragmentArgs);

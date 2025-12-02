@@ -40,12 +40,12 @@ import com.android.settings.spa.app.specialaccess.NfcTagAppsSettingsProvider
 import com.android.settings.spa.app.specialaccess.PictureInPictureListProvider
 import com.android.settings.spa.app.specialaccess.SpecialAppAccessPageProvider
 import com.android.settings.spa.app.specialaccess.TurnScreenOnAppsAppListProvider
+import com.android.settings.spa.app.specialaccess.UsageDataAppListProvider
 import com.android.settings.spa.app.specialaccess.UseFullScreenIntentAppListProvider
 import com.android.settings.spa.app.specialaccess.WifiControlAppListProvider
 import com.android.settings.spa.app.specialaccess.WriteSystemPreferencesAppListProvider
 import com.android.settings.spa.app.storage.StorageAppListPageProvider
 import com.android.settings.spa.core.instrumentation.SpaLogMetricsProvider
-import com.android.settings.spa.core.instrumentation.SpaLogProvider
 import com.android.settings.spa.development.UsageStatsPageProvider
 import com.android.settings.spa.development.compat.PlatformCompatAppListPageProvider
 import com.android.settings.spa.home.HomePageProvider
@@ -64,6 +64,7 @@ import com.android.settingslib.spa.framework.common.SpaLogger
 import com.android.settingslib.spa.framework.common.createSettingsPage
 import com.android.settingslib.spaprivileged.template.app.TogglePermissionAppListProvider
 import com.android.settingslib.spaprivileged.template.app.TogglePermissionAppListTemplate
+import com.android.settingslib.widget.theme.flags.Flags
 
 open class SettingsSpaEnvironment(context: Context) : SpaEnvironment(context) {
     open fun getTogglePermissionAppListProviders(): List<TogglePermissionAppListProvider> {
@@ -82,54 +83,57 @@ open class SettingsSpaEnvironment(context: Context) : SpaEnvironment(context) {
             LongBackgroundTasksAppListProvider,
             TurnScreenOnAppsAppListProvider,
             WriteSystemPreferencesAppListProvider,
+            UsageDataAppListProvider,
         )
     }
 
     override val pageProviderRepository = lazy {
-        val togglePermissionAppListTemplate = TogglePermissionAppListTemplate(
-            allProviders = getTogglePermissionAppListProviders()
-        )
+        val togglePermissionAppListTemplate =
+            TogglePermissionAppListTemplate(allProviders = getTogglePermissionAppListProviders())
         SettingsPageProviderRepository(
-            allPageProviders = settingsPageProviders()
-                + togglePermissionAppListTemplate.createPageProviders(),
-            rootPages = listOf(
-                HomePageProvider.createSettingsPage()
-            ),
+            allPageProviders =
+                settingsPageProviders() + togglePermissionAppListTemplate.createPageProviders(),
+            rootPages = listOf(HomePageProvider.createSettingsPage()),
         )
     }
 
-
-    open fun settingsPageProviders() = listOf(
-        HomePageProvider,
-        AppsMainPageProvider,
-        AllAppListPageProvider,
-        AppInfoSettingsProvider,
-        SpecialAppAccessPageProvider,
-        NotificationMainPageProvider,
-        AppListNotificationsPageProvider,
-        SystemMainPageProvider,
-        LanguageAndInputPageProvider,
-        AppLanguagesPageProvider,
-        UsageStatsPageProvider,
-        PlatformCompatAppListPageProvider,
-        BackgroundInstalledAppsPageProvider,
-        UserAspectRatioAppsPageProvider,
-        CloneAppInfoSettingsProvider,
-        NetworkAndInternetPageProvider,
-        AboutPhonePageProvider,
-        StorageAppListPageProvider.Apps,
-        StorageAppListPageProvider.Games,
-        ApnEditPageProvider,
-        SimOnboardingPageProvider,
-        BatteryOptimizationModeAppListPageProvider,
-        NetworkCellularGroupProvider(),
-        WifiPrivacyPageProvider,
-        PrintSettingsPageProvider,
-    )
-
-    override val logger = if (FeatureFlagUtils.isEnabled(
-            context, FeatureFlagUtils.SETTINGS_ENABLE_SPA_METRICS
+    open fun settingsPageProviders() =
+        listOf(
+            HomePageProvider,
+            AppsMainPageProvider,
+            AllAppListPageProvider,
+            AppInfoSettingsProvider,
+            SpecialAppAccessPageProvider,
+            NotificationMainPageProvider,
+            AppListNotificationsPageProvider.AllApps,
+            AppListNotificationsPageProvider.ExcludeClassification,
+            AppListNotificationsPageProvider.ExcludeSummarization,
+            SystemMainPageProvider,
+            LanguageAndInputPageProvider,
+            AppLanguagesPageProvider,
+            UsageStatsPageProvider,
+            PlatformCompatAppListPageProvider,
+            BackgroundInstalledAppsPageProvider,
+            UserAspectRatioAppsPageProvider,
+            CloneAppInfoSettingsProvider,
+            NetworkAndInternetPageProvider,
+            AboutPhonePageProvider,
+            StorageAppListPageProvider.Apps,
+            StorageAppListPageProvider.Games,
+            ApnEditPageProvider,
+            SimOnboardingPageProvider,
+            BatteryOptimizationModeAppListPageProvider,
+            NetworkCellularGroupProvider(),
+            WifiPrivacyPageProvider,
+            PrintSettingsPageProvider,
         )
-    ) SpaLogMetricsProvider // ToDo: Implement 'SpaLogProvider' for SPA settings.
-    else object : SpaLogger {}
+
+    override val logger =
+        if (FeatureFlagUtils.isEnabled(context, FeatureFlagUtils.SETTINGS_ENABLE_SPA_METRICS))
+            SpaLogMetricsProvider // ToDo: Implement 'SpaLogProvider' for SPA settings.
+        else object : SpaLogger {}
+
+    override val isSpaExpressiveEnabled by lazy {
+        super.isSpaExpressiveEnabled || Flags.isExpressiveDesignEnabled()
+    }
 }

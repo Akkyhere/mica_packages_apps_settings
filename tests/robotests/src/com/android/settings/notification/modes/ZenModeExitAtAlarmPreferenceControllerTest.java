@@ -23,9 +23,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import android.app.Flags;
 import android.content.Context;
-import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.service.notification.ZenModeConfig;
 
@@ -34,6 +32,7 @@ import androidx.test.core.app.ApplicationProvider;
 
 import com.android.settingslib.notification.modes.TestModeBuilder;
 import com.android.settingslib.notification.modes.ZenMode;
+import com.android.settingslib.notification.modes.ZenModeSchedules;
 import com.android.settingslib.notification.modes.ZenModesBackend;
 
 import org.junit.Before;
@@ -48,7 +47,6 @@ import org.robolectric.RobolectricTestRunner;
 import java.util.Calendar;
 
 @RunWith(RobolectricTestRunner.class)
-@EnableFlags(Flags.FLAG_MODES_UI)
 public class ZenModeExitAtAlarmPreferenceControllerTest {
     @Rule
     public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
@@ -89,7 +87,7 @@ public class ZenModeExitAtAlarmPreferenceControllerTest {
 
         // Now update state after changing exitAtAlarm
         scheduleInfo.exitAtAlarm = true;
-        mode.getRule().setConditionId(ZenModeConfig.toScheduleConditionId(scheduleInfo));
+        mode.setCustomModeConditionId(mContext, ZenModeConfig.toScheduleConditionId(scheduleInfo));
 
         // now can just call updateState
         mPrefController.updateState(preference, mode);
@@ -117,8 +115,8 @@ public class ZenModeExitAtAlarmPreferenceControllerTest {
         mPrefController.onPreferenceChange(preference, false);
         ArgumentCaptor<ZenMode> captor = ArgumentCaptor.forClass(ZenMode.class);
         verify(mBackend).updateMode(captor.capture());
-        ZenModeConfig.ScheduleInfo newSchedule = ZenModeConfig.tryParseScheduleConditionId(
-                captor.getValue().getRule().getConditionId());
+        ZenModeConfig.ScheduleInfo newSchedule = ZenModeSchedules.getTimeSchedule(
+                captor.getValue());
         assertThat(newSchedule.exitAtAlarm).isFalse();
 
         // other properties remain the same

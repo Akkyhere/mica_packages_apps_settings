@@ -20,6 +20,7 @@ import static com.android.settings.bluetooth.BluetoothDetailsHearingDeviceContro
 import static com.android.settings.bluetooth.BluetoothDetailsHearingDeviceController.ORDER_AMBIENT_VOLUME;
 
 import android.content.Context;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -28,10 +29,11 @@ import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceScreen;
 
-import com.android.settingslib.bluetooth.AmbientVolumeUiController;
 import com.android.settingslib.bluetooth.CachedBluetoothDevice;
 import com.android.settingslib.bluetooth.LocalBluetoothManager;
 import com.android.settingslib.bluetooth.VolumeControlProfile;
+import com.android.settingslib.bluetooth.hearingdevices.ui.AmbientVolumeUiController;
+import com.android.settingslib.core.instrumentation.Instrumentable;
 import com.android.settingslib.core.lifecycle.Lifecycle;
 import com.android.settingslib.core.lifecycle.events.OnStart;
 import com.android.settingslib.core.lifecycle.events.OnStop;
@@ -83,6 +85,9 @@ public class BluetoothDetailsAmbientVolumePreferenceController extends Bluetooth
         mPreference = new AmbientVolumePreference(deviceControls.getContext());
         mPreference.setKey(KEY_AMBIENT_VOLUME);
         mPreference.setOrder(ORDER_AMBIENT_VOLUME);
+        if (mFragment instanceof Instrumentable) {
+            mPreference.setMetricsCategory(((Instrumentable) mFragment).getMetricsCategory());
+        }
         deviceControls.addPreference(mPreference);
 
         mAmbientUiController = new AmbientVolumeUiController(mContext, mBluetoothManager,
@@ -129,11 +134,17 @@ public class BluetoothDetailsAmbientVolumePreferenceController extends Bluetooth
 
     @Override
     public boolean isAvailable() {
-        return mCachedDevice.isHearingDevice()
-                && mCachedDevice.getProfiles().stream().anyMatch(
-                        profile -> profile instanceof VolumeControlProfile)
-                && mAmbientUiController != null
-                && mAmbientUiController.isAmbientControlAvailable();
+        boolean isHearingDevice = mCachedDevice.isHearingDevice();
+        boolean supportVcp = mCachedDevice.getProfiles().stream().anyMatch(
+                profile -> profile instanceof VolumeControlProfile);
+        boolean hasAmbientControl =
+                mAmbientUiController != null && mAmbientUiController.isAmbientControlAvailable();
+        if (DEBUG) {
+            Log.v(TAG, "isAvailable, isHearingDevice=" + isHearingDevice
+                    + ", supportVcp=" + supportVcp
+                    + ", hasAmbientControl=" + hasAmbientControl);
+        }
+        return isHearingDevice && supportVcp && hasAmbientControl;
     }
 
     @Nullable

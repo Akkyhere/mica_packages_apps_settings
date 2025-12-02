@@ -44,15 +44,13 @@ import java.util.regex.Pattern;
 public class PrivateSpaceEducation extends InstrumentedFragment {
     private static final String TAG = "PrivateSpaceEducation";
 
+    private boolean mIsAnimationPlaying = true;
+
     @Override
     public View onCreateView(
             LayoutInflater inflater,
             @Nullable ViewGroup container,
             @Nullable Bundle savedInstanceState) {
-        if (!android.os.Flags.allowPrivateProfile()
-                || !android.multiuser.Flags.enablePrivateSpaceFeatures()) {
-            return null;
-        }
         GlifLayout rootView =
                 (GlifLayout)
                         inflater.inflate(R.layout.private_space_education_screen, container, false);
@@ -73,6 +71,9 @@ public class PrivateSpaceEducation extends InstrumentedFragment {
                         .build());
         LottieAnimationView lottieAnimationView = rootView.findViewById(R.id.lottie_animation);
         LottieColorUtils.applyDynamicColors(getContext(), lottieAnimationView);
+        lottieAnimationView.setOnClickListener(v -> handleAnimationClick(lottieAnimationView));
+        PrivateSpaceAccessibilityUtils.updateAccessibilityActionForAnimation(getContext(),
+                lottieAnimationView, mIsAnimationPlaying);
 
         TextView infoTextView = rootView.findViewById(R.id.learn_more);
         Pattern pattern = Pattern.compile(infoTextView.getText().toString());
@@ -109,5 +110,16 @@ public class PrivateSpaceEducation extends InstrumentedFragment {
                 activity.finish();
             }
         };
+    }
+
+    private void handleAnimationClick(LottieAnimationView lottieAnimationView) {
+        if (mIsAnimationPlaying) {
+            lottieAnimationView.pauseAnimation();
+        } else {
+            lottieAnimationView.playAnimation();
+        }
+        mIsAnimationPlaying = !mIsAnimationPlaying;
+        PrivateSpaceAccessibilityUtils.updateAccessibilityActionForAnimation(getContext(),
+                lottieAnimationView, mIsAnimationPlaying);
     }
 }

@@ -33,7 +33,6 @@ import android.net.wifi.WifiEnterpriseConfig.Eap;
 import android.net.wifi.WifiEnterpriseConfig.Phase2;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
-import android.os.IBinder;
 import android.security.keystore.KeyProperties;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
@@ -48,12 +47,8 @@ import android.view.View;
 import android.view.View.AccessibilityDelegate;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityNodeInfo;
-import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction;
 import android.view.inputmethod.EditorInfo;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -70,11 +65,15 @@ import com.android.net.module.util.NetUtils;
 import com.android.net.module.util.ProxyUtils;
 import com.android.settings.ProxySelector;
 import com.android.settings.R;
+import com.android.settings.Utils;
 import com.android.settings.network.SubscriptionUtil;
 import com.android.settings.utils.AndroidKeystoreAliasLoader;
+import com.android.settings.widget.EnhancedSettingsSpinnerAdapter;
 import com.android.settings.wifi.details2.WifiPrivacyPreferenceController;
 import com.android.settings.wifi.dpp.WifiDppUtils;
-import com.android.settingslib.Utils;
+import com.android.settings.wifi.utils.TextInputGroup;
+import com.android.settings.wifi.utils.TextInputValidator;
+import com.android.settings.wifi.utils.WifiPasswordInput;
 import com.android.settingslib.utils.ThreadUtils;
 import com.android.settingslib.wifi.AccessPoint;
 import com.android.wifi.flags.Flags;
@@ -160,9 +159,9 @@ public class WifiConfigController implements TextWatcher,
     @VisibleForTesting static final int DHCP_SPINNER_INDEX_SEND_DHCP_HOST_NAME_DISABLE = 1;
 
     /* Phase2 methods supported by PEAP are limited */
-    private ArrayAdapter<CharSequence> mPhase2PeapAdapter;
+    private EnhancedSettingsSpinnerAdapter<CharSequence> mPhase2PeapAdapter;
     /* Phase2 methods supported by TTLS are limited */
-    private ArrayAdapter<CharSequence> mPhase2TtlsAdapter;
+    private EnhancedSettingsSpinnerAdapter<CharSequence> mPhase2TtlsAdapter;
 
     // e.g. AccessPoint.SECURITY_NONE
     @VisibleForTesting
@@ -183,7 +182,7 @@ public class WifiConfigController implements TextWatcher,
     private TextView mEapDomainView;
     private Spinner mPhase2Spinner;
     // Associated with mPhase2Spinner, one of mPhase2TtlsAdapter or mPhase2PeapAdapter
-    private ArrayAdapter<CharSequence> mPhase2Adapter;
+    private EnhancedSettingsSpinnerAdapter<CharSequence> mPhase2Adapter;
     private Spinner mEapUserCertSpinner;
     private TextView mEapIdentityView;
     private TextView mEapAnonymousView;
@@ -215,7 +214,10 @@ public class WifiConfigController implements TextWatcher,
 
     private String[] mLevels;
     private int mMode;
-    private TextView mSsidView;
+
+    private TextInputValidator mValidator = new TextInputValidator();
+    private TextInputGroup mSsidInput;
+    private WifiPasswordInput mPasswordInput;
 
     private Context mContext;
 
@@ -225,6 +227,8 @@ public class WifiConfigController implements TextWatcher,
     private final WifiManager mWifiManager;
 
     private final List<SubscriptionInfo> mActiveSubscriptionInfos = new ArrayList<>();
+
+    private WifiConfigAdvancedLayout mWifiConfigAdvancedLayout;
 
     public WifiConfigController(WifiConfigUiBase parent, View view, AccessPoint accessPoint,
             int mode) {
@@ -258,7 +262,7 @@ public class WifiConfigController implements TextWatcher,
     }
 
     private void initWifiConfigController(AccessPoint accessPoint, int mode) {
-
+        mWifiConfigAdvancedLayout = new WifiConfigAdvancedLayout(mView);
         mAccessPointSecurity = (accessPoint == null) ? AccessPoint.SECURITY_NONE :
                 accessPoint.getSecurity();
         mMode = mode;
@@ -266,7 +270,7 @@ public class WifiConfigController implements TextWatcher,
         final Resources res = mContext.getResources();
 
         mLevels = res.getStringArray(R.array.wifi_signal);
-        if (Utils.isWifiOnly(mContext) || !mContext.getResources().getBoolean(
+        if (!Utils.isMobileDataCapable(mContext) || !mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_eap_sim_based_auth_supported)) {
             mPhase2PeapAdapter = getSpinnerAdapter(R.array.wifi_peap_phase2_entries);
         } else {
@@ -288,16 +292,28 @@ public class WifiConfigController implements TextWatcher,
             wepWarningLayout.setVisibility(View.VISIBLE);
         }
 
+        mSsidInput = new TextInputGroup(mView, R.id.ssid_layout, R.id.ssid,
+                R.string.wifi_ssid_hint);
+        mPasswordInput = new WifiPasswordInput(mView, mAccessPointSecurity);
+        mValidator.addTextInput(mSsidInput);
+        mValidator.addTextInput(mPasswordInput);
+
         mSsidScanButton = (ImageButton) mView.findViewById(R.id.ssid_scanner_button);
         mIpSettingsSpinner = (Spinner) mView.findViewById(R.id.ip_settings);
+        mIpSettingsSpinner.setAdapter(getSpinnerAdapter(R.array.wifi_ip_settings));
         mIpSettingsSpinner.setOnItemSelectedListener(this);
         mProxySettingsSpinner = (Spinner) mView.findViewById(R.id.proxy_settings);
+        mProxySettingsSpinner.setAdapter(getSpinnerAdapter(R.array.wifi_proxy_settings));
         mProxySettingsSpinner.setOnItemSelectedListener(this);
         mSharedCheckBox = (CheckBox) mView.findViewById(R.id.shared);
         mMeteredSettingsSpinner = mView.findViewById(R.id.metered_settings);
+        mMeteredSettingsSpinner.setAdapter(getSpinnerAdapter(R.array.wifi_metered_entries));
         mHiddenSettingsSpinner = mView.findViewById(R.id.hidden_settings);
+        mHiddenSettingsSpinner.setAdapter(getSpinnerAdapter(R.array.wifi_hidden_entries));
         mPrivacySettingsSpinner = mView.findViewById(R.id.privacy_settings);
+        mPrivacySettingsSpinner.setAdapter(getSpinnerAdapter(R.array.wifi_privacy_entries));
         mDhcpSettingsSpinner = mView.findViewById(R.id.dhcp_settings);
+        mDhcpSettingsSpinner.setAdapter(getSpinnerAdapter(R.array.wifi_dhcp_entries));
         if (mWifiManager.isConnectedMacRandomizationSupported()) {
             View privacySettingsLayout = mView.findViewById(R.id.privacy_settings_fields);
             privacySettingsLayout.setVisibility(View.VISIBLE);
@@ -371,6 +387,7 @@ public class WifiConfigController implements TextWatcher,
                             config.providerFriendlyName));
                 }
             }
+            mWifiConfigAdvancedLayout.setExpanded(showAdvancedFields);
 
             if ((!mAccessPoint.isSaved() && !mAccessPoint.isActive()
                     && !mAccessPoint.isPasspointConfig())
@@ -378,17 +395,6 @@ public class WifiConfigController implements TextWatcher,
                 showSecurityFields(/* refreshEapMethods */ true, /* refreshCertificates */ true);
                 showIpConfigFields();
                 showProxyFields();
-                final CheckBox advancedTogglebox =
-                        (CheckBox) mView.findViewById(R.id.wifi_advanced_togglebox);
-                if (!showAdvancedFields) {
-                    // Need to show Advanced Option button.
-                    mView.findViewById(R.id.wifi_advanced_toggle).setVisibility(View.VISIBLE);
-                    advancedTogglebox.setOnCheckedChangeListener(this);
-                    advancedTogglebox.setChecked(showAdvancedFields);
-                    setAdvancedOptionAccessibilityString();
-                }
-                mView.findViewById(R.id.wifi_advanced_fields)
-                        .setVisibility(showAdvancedFields ? View.VISIBLE : View.GONE);
             }
 
             if (mMode == WifiConfigUiBase.MODE_MODIFY) {
@@ -517,45 +523,8 @@ public class WifiConfigController implements TextWatcher,
         submit.setEnabled(isSubmittable());
     }
 
-    boolean isValidPsk(String password) {
-        if (password.length() == 64 && password.matches("[0-9A-Fa-f]{64}")) {
-            return true;
-        } else if (password.length() >= 8 && password.length() <= 63) {
-            return true;
-        }
-        return false;
-    }
-
-    boolean isValidSaePassword(String password) {
-        if (password.length() >= 1 && password.length() <= 63) {
-            return true;
-        }
-        return false;
-    }
-
     boolean isSubmittable() {
-        boolean enabled = false;
-        boolean passwordInvalid = false;
-        if (mPasswordView != null
-                && ((mAccessPointSecurity == AccessPoint.SECURITY_WEP
-                        && mPasswordView.length() == 0)
-                    || (mAccessPointSecurity == AccessPoint.SECURITY_PSK
-                           && !isValidPsk(mPasswordView.getText().toString()))
-                    || (mAccessPointSecurity == AccessPoint.SECURITY_SAE
-                        && !isValidSaePassword(mPasswordView.getText().toString())))) {
-            passwordInvalid = true;
-        }
-        if ((mSsidView != null && mSsidView.length() == 0)
-                // If Accesspoint is not saved, apply passwordInvalid check
-                || ((mAccessPoint == null || !mAccessPoint.isSaved()) && passwordInvalid
-                // If AccessPoint is saved (modifying network) and password is changed, apply
-                // Invalid password check
-                || mAccessPoint != null && mAccessPoint.isSaved() && passwordInvalid
-                    && mPasswordView.length() > 0)) {
-            enabled = false;
-        } else {
-            enabled = ipAndProxyFieldsAreValid();
-        }
+        boolean enabled = ipAndProxyFieldsAreValid();
         if ((mAccessPointSecurity == AccessPoint.SECURITY_EAP
                 || mAccessPointSecurity == AccessPoint.SECURITY_EAP_WPA3_ENTERPRISE
                 || mAccessPointSecurity == AccessPoint.SECURITY_EAP_SUITE_B)
@@ -592,11 +561,8 @@ public class WifiConfigController implements TextWatcher,
         mView.findViewById(R.id.no_domain_warning).setVisibility(View.GONE);
         mView.findViewById(R.id.ssid_too_long_warning).setVisibility(View.GONE);
 
-        if (mSsidView != null) {
-            final String ssid = mSsidView.getText().toString();
-            if (WifiUtils.isSSIDTooLong(ssid)) {
-                mView.findViewById(R.id.ssid_too_long_warning).setVisibility(View.VISIBLE);
-            }
+        if (WifiUtils.isSSIDTooLong(mSsidInput.getText())) {
+            mView.findViewById(R.id.ssid_too_long_warning).setVisibility(View.VISIBLE);
         }
         if (mEapCaCertSpinner != null
                 && mView.findViewById(R.id.l_ca_cert).getVisibility() != View.GONE) {
@@ -626,8 +592,7 @@ public class WifiConfigController implements TextWatcher,
         WifiConfiguration config = new WifiConfiguration();
 
         if (mAccessPoint == null) {
-            config.SSID = AccessPoint.convertToQuotedString(
-                    mSsidView.getText().toString());
+            config.SSID = AccessPoint.convertToQuotedString(mSsidInput.getText());
             // If the user adds a network manually, assume that it is hidden.
             config.hiddenSSID = mHiddenSettingsSpinner.getSelectedItemPosition() == HIDDEN_NETWORK;
         } else if (!mAccessPoint.isSaved()) {
@@ -1051,6 +1016,7 @@ public class WifiConfigController implements TextWatcher,
             mEapCaCertSpinner = (Spinner) mView.findViewById(R.id.ca_cert);
             mEapCaCertSpinner.setOnItemSelectedListener(this);
             mEapOcspSpinner = (Spinner) mView.findViewById(R.id.ocsp);
+            mEapOcspSpinner.setAdapter(getSpinnerAdapter(R.array.eap_ocsp_type));
             mEapDomainView = (TextView) mView.findViewById(R.id.domain);
             mEapDomainView.addTextChangedListener(this);
             mEapUserCertSpinner = (Spinner) mView.findViewById(R.id.user_cert);
@@ -1062,14 +1028,14 @@ public class WifiConfigController implements TextWatcher,
         }
 
         if (refreshEapMethods) {
-            ArrayAdapter<CharSequence> eapMethodSpinnerAdapter;
+            EnhancedSettingsSpinnerAdapter<CharSequence> eapMethodSpinnerAdapter;
             if (mAccessPointSecurity == AccessPoint.SECURITY_EAP_SUITE_B) {
                 eapMethodSpinnerAdapter = getSpinnerAdapter(R.array.wifi_eap_method);
                 mEapMethodSpinner.setAdapter(eapMethodSpinnerAdapter);
                 // WAP3-Enterprise 192-bit only allows EAP method TLS
                 mEapMethodSpinner.setSelection(Eap.TLS);
                 mEapMethodSpinner.setEnabled(false);
-            } else if (Utils.isWifiOnly(mContext) || !mContext.getResources().getBoolean(
+            } else if (!Utils.isMobileDataCapable(mContext) || !mContext.getResources().getBoolean(
                     com.android.internal.R.bool.config_eap_sim_based_auth_supported)) {
                 eapMethodSpinnerAdapter = getSpinnerAdapter(R.array.eap_method_without_sim_auth);
                 mEapMethodSpinner.setAdapter(eapMethodSpinnerAdapter);
@@ -1530,7 +1496,6 @@ public class WifiConfigController implements TextWatcher,
             final String[] noSim = new String[]{mContext.getString(R.string.wifi_no_sim_card)};
             mEapSimSpinner.setAdapter(getSpinnerAdapter(noSim));
             mEapSimSpinner.setSelection(0 /* position */);
-            mEapSimSpinner.setEnabled(false);
             return;
         }
 
@@ -1543,9 +1508,6 @@ public class WifiConfigController implements TextWatcher,
         mEapSimSpinner.setAdapter(
             getSpinnerAdapter(displayNames.toArray(new String[displayNames.size()])));
         mEapSimSpinner.setSelection(0 /* position */);
-        if (displayNames.size() == 1) {
-            mEapSimSpinner.setEnabled(false);
-        }
     }
 
     @VisibleForTesting
@@ -1586,20 +1548,18 @@ public class WifiConfigController implements TextWatcher,
         // If there is only mUnspecifiedCertString and one item to select, only shows the item
         if (certs.size() == 2) {
             certs.remove(mUnspecifiedCertString);
-            spinner.setEnabled(false);
-        } else {
-            spinner.setEnabled(true);
         }
 
-        final ArrayAdapter<CharSequence> adapter = getSpinnerAdapter(
-                certs.toArray(new String[certs.size()]));
+        EnhancedSettingsSpinnerAdapter<CharSequence> adapter =
+                getSpinnerAdapter(certs.toArray(new String[certs.size()]));
         spinner.setAdapter(adapter);
     }
 
     private void setSelection(Spinner spinner, String value) {
         if (value != null) {
             @SuppressWarnings("unchecked")
-            ArrayAdapter<String> adapter = (ArrayAdapter<String>) spinner.getAdapter();
+            EnhancedSettingsSpinnerAdapter<String> adapter =
+                    (EnhancedSettingsSpinnerAdapter<String>) spinner.getAdapter();
             for (int i = adapter.getCount() - 1; i >= 0; --i) {
                 if (value.equals(adapter.getItem(i))) {
                     spinner.setSelection(i);
@@ -1663,11 +1623,6 @@ public class WifiConfigController implements TextWatcher,
             if (pos >= 0) {
                 ((EditText) mPasswordView).setSelection(pos);
             }
-        } else if (view.getId() == R.id.wifi_advanced_togglebox) {
-            // Hide the SoftKeyboard temporary to let user can see most of the expanded items.
-            hideSoftKeyboard(mView.getWindowToken());
-            view.setVisibility(View.GONE);
-            mView.findViewById(R.id.wifi_advanced_fields).setVisibility(View.VISIBLE);
         }
     }
 
@@ -1677,6 +1632,7 @@ public class WifiConfigController implements TextWatcher,
             // Convert menu position to actual Wi-Fi security type
             mAccessPointSecurity = mSecurityInPosition[position];
             showSecurityFields(/* refreshEapMethods */ true, /* refreshCertificates */ true);
+            mPasswordInput.setSecurity(mAccessPointSecurity);
 
             if (WifiDppUtils.isSupportEnrolleeQrCodeScanner(mContext, mAccessPointSecurity)) {
                 mSsidScanButton.setVisibility(View.VISIBLE);
@@ -1725,14 +1681,12 @@ public class WifiConfigController implements TextWatcher,
     private void configureSecuritySpinner() {
         mConfigUi.setTitle(R.string.wifi_add_network);
 
-        mSsidView = (TextView) mView.findViewById(R.id.ssid);
-        mSsidView.addTextChangedListener(this);
+        mSsidInput.addTextChangedListener(this);
         mSecuritySpinner = ((Spinner) mView.findViewById(R.id.security));
         mSecuritySpinner.setOnItemSelectedListener(this);
 
-        ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<String>(mContext,
-                android.R.layout.simple_spinner_item, android.R.id.text1);
-        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        EnhancedSettingsSpinnerAdapter<String> spinnerAdapter =
+                new EnhancedSettingsSpinnerAdapter<>(mContext, new String[0]);
         mSecuritySpinner.setAdapter(spinnerAdapter);
         int idx = 0;
 
@@ -1776,13 +1730,9 @@ public class WifiConfigController implements TextWatcher,
 
         showIpConfigFields();
         showProxyFields();
-        mView.findViewById(R.id.wifi_advanced_toggle).setVisibility(View.VISIBLE);
         // Hidden option can be changed only when the user adds a network manually.
         mView.findViewById(R.id.hidden_settings_field).setVisibility(View.VISIBLE);
-        ((CheckBox) mView.findViewById(R.id.wifi_advanced_togglebox))
-                .setOnCheckedChangeListener(this);
-        // Set correct accessibility strings.
-        setAdvancedOptionAccessibilityString();
+        mWifiConfigAdvancedLayout.setExpanded(false);
     }
 
     /**
@@ -1813,19 +1763,17 @@ public class WifiConfigController implements TextWatcher,
         return returnEntries;
     }
 
-    private ArrayAdapter<CharSequence> getSpinnerAdapter(
+    private EnhancedSettingsSpinnerAdapter<CharSequence> getSpinnerAdapter(
             int contentStringArrayResId) {
         return getSpinnerAdapter(
                 mContext.getResources().getStringArray(contentStringArrayResId));
     }
 
     @VisibleForTesting
-    ArrayAdapter<CharSequence> getSpinnerAdapter(
+    EnhancedSettingsSpinnerAdapter<CharSequence> getSpinnerAdapter(
             String[] contentStringArray) {
-        ArrayAdapter<CharSequence> spinnerAdapter = new ArrayAdapter<>(mContext,
-                android.R.layout.simple_spinner_item, contentStringArray);
-        spinnerAdapter.setDropDownViewResource(
-                android.R.layout.simple_spinner_dropdown_item);
+        EnhancedSettingsSpinnerAdapter<CharSequence> spinnerAdapter =
+                new EnhancedSettingsSpinnerAdapter<>(mContext, contentStringArray);
         return spinnerAdapter;
     }
 
@@ -1833,7 +1781,7 @@ public class WifiConfigController implements TextWatcher,
      * This function is to span the TTS strings to each EAP method items in the
      * spinner to have detail TTS content for the TTS engine usage.
      */
-    private ArrayAdapter<CharSequence> getSpinnerAdapterWithEapMethodsTts(
+    private EnhancedSettingsSpinnerAdapter<CharSequence> getSpinnerAdapterWithEapMethodsTts(
                 int contentStringArrayResId) {
         final Resources res = mContext.getResources();
         CharSequence[] sourceStrings = res.getStringArray(
@@ -1851,11 +1799,9 @@ public class WifiConfigController implements TextWatcher,
         final CharSequence[] accessibilityArray = createAccessibleEntries(
                 sourceStrings, newTtsSourceStrings);
 
-        // Return a new ArrayAdapter with the new TalkBack array.
-        ArrayAdapter<CharSequence> spinnerAdapter = new ArrayAdapter<>(
-                mContext, android.R.layout.simple_spinner_item, accessibilityArray);
-        spinnerAdapter.setDropDownViewResource(
-                android.R.layout.simple_spinner_dropdown_item);
+        // Return a new EnhancedSettingsSpinnerAdapter with the new TalkBack array.
+        EnhancedSettingsSpinnerAdapter<CharSequence> spinnerAdapter =
+                new EnhancedSettingsSpinnerAdapter<>(mContext, accessibilityArray);
         return spinnerAdapter;
     }
 
@@ -1863,35 +1809,16 @@ public class WifiConfigController implements TextWatcher,
             CharSequence[] contentDescriptions) {
         final SpannableString[] accessibleEntries = new SpannableString[entries.length];
         for (int i = 0; i < entries.length; i++) {
-            accessibleEntries[i] = com.android.settings.Utils.createAccessibleSequence(entries[i],
+            accessibleEntries[i] = Utils.createAccessibleSequence(entries[i],
                     contentDescriptions[i].toString());
         }
         return accessibleEntries;
     }
 
-    private void hideSoftKeyboard(IBinder windowToken) {
-        final InputMethodManager inputMethodManager = mContext.getSystemService(
-                InputMethodManager.class);
-        inputMethodManager.hideSoftInputFromWindow(windowToken, 0 /* flags */);
-    }
-
-    private void setAdvancedOptionAccessibilityString() {
-        final CheckBox advancedToggleBox = mView.findViewById(R.id.wifi_advanced_togglebox);
-        advancedToggleBox.setAccessibilityDelegate(new AccessibilityDelegate() {
-            @Override
-            public void onInitializeAccessibilityNodeInfo(
-                    View v, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(v, info);
-                // To let TalkBack don't pronounce checked/unchecked.
-                info.setCheckable(false /* checkable */);
-                // To let TalkBack don't pronounce CheckBox.
-                info.setClassName(null /* className */);
-                // Customize TalkBack's pronunciation which been appended to "Double-tap to".
-                final AccessibilityAction customClick = new AccessibilityAction(
-                        AccessibilityNodeInfo.ACTION_CLICK,
-                        mContext.getString(R.string.wifi_advanced_toggle_description_collapsed));
-                info.addAction(customClick);
-            }
-        });
+    /**
+     * Provides a validator to verify that the Wi-Fi configuration is ready.
+     */
+    public TextInputValidator getValidator() {
+        return mValidator;
     }
 }

@@ -17,6 +17,9 @@
 package com.android.settings.network.telephony
 
 import android.content.Context
+import android.content.res.Resources
+import android.os.UserManager
+import android.telephony.TelephonyManager
 import androidx.lifecycle.testing.TestLifecycleOwner
 import androidx.preference.Preference
 import androidx.preference.PreferenceManager
@@ -25,7 +28,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.dx.mockito.inline.extended.ExtendedMockito
 import com.android.settings.R
 import com.android.settings.core.BasePreferenceController
-import com.android.settings.network.SubscriptionUtil
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
@@ -34,19 +36,27 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.MockitoSession
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.spy
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
-import org.mockito.quality.Strictness
 
 @RunWith(AndroidJUnit4::class)
 class MobileNetworkPhoneNumberPreferenceControllerTest {
-    private lateinit var mockSession: MockitoSession
 
-    private val context: Context = ApplicationProvider.getApplicationContext()
+    private val mockTelephonyManager = mock<TelephonyManager>()
+    private val mockUserManager = mock<UserManager>()
     private val mockSubscriptionRepository = mock<SubscriptionRepository>()
+
+    private val context: Context =
+        spy(ApplicationProvider.getApplicationContext()) {
+            on { getSystemService(TelephonyManager::class.java) } doReturn mockTelephonyManager
+            on { getSystemService(Context.TELEPHONY_SERVICE) } doReturn mockTelephonyManager
+            on { getSystemService(UserManager::class.java) } doReturn mockUserManager
+        }
+
+    private val spyResources = spy(context.resources)
 
     private val controller =
         MobileNetworkPhoneNumberPreferenceController(context, TEST_KEY, mockSubscriptionRepository)
@@ -55,25 +65,27 @@ class MobileNetworkPhoneNumberPreferenceControllerTest {
 
     @Before
     fun setUp() {
-        mockSession =
-            ExtendedMockito.mockitoSession()
-                .mockStatic(SubscriptionUtil::class.java)
-                .strictness(Strictness.LENIENT)
-                .startMocking()
+        context.stub { on { resources } doReturn spyResources }
+
+        // By default, available
+        spyResources.stub {
+            on { getBoolean(R.bool.config_show_sim_info) } doReturn true
+        }
+        mockTelephonyManager.stub {
+            on { isDataCapable } doReturn true
+            on { isDeviceVoiceCapable } doReturn true
+        }
+        mockUserManager.stub {
+            on { isAdminUser } doReturn true
+        }
 
         preferenceScreen.addPreference(preference)
         controller.init(SUB_ID)
         controller.displayPreference(preferenceScreen)
     }
 
-    @After
-    fun tearDown() {
-        mockSession.finishMocking()
-    }
-
     @Test
     fun onViewCreated_cannotGetPhoneNumber_displayUnknown() = runBlocking {
-        whenever(SubscriptionUtil.isSimHardwareVisible(context)).thenReturn(true)
         mockSubscriptionRepository.stub {
             on { phoneNumberFlow(SUB_ID) } doReturn flowOf(null)
         }
@@ -86,7 +98,6 @@ class MobileNetworkPhoneNumberPreferenceControllerTest {
 
     @Test
     fun onViewCreated_canGetPhoneNumber_displayPhoneNumber() = runBlocking {
-        whenever(SubscriptionUtil.isSimHardwareVisible(context)).thenReturn(true)
         mockSubscriptionRepository.stub {
             on { phoneNumberFlow(SUB_ID) } doReturn flowOf(PHONE_NUMBER)
         }
@@ -98,12 +109,63 @@ class MobileNetworkPhoneNumberPreferenceControllerTest {
     }
 
     @Test
-    fun getAvailabilityStatus_notSimHardwareVisible() {
-        whenever(SubscriptionUtil.isSimHardwareVisible(context)).thenReturn(false)
+    fun getAvailabilityStatus_default_displayed() {
+        // Use defaults from setup()
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.AVAILABLE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_notShowSimInfo_notDisplayed() {
+        spyResources.stub {
+            on { getBoolean(R.bool.config_show_sim_info) } doReturn false
+        }
 
         val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.UNSUPPORTED_ON_DEVICE)
+    }
 
-        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.CONDITIONALLY_UNAVAILABLE)
+    @Test
+    fun getAvailabilityStatus_notVoiceCapable_notDataCapable_notDisplayed() {
+        mockTelephonyManager.stub {
+            on { isDataCapable } doReturn false
+            on { isDeviceVoiceCapable } doReturn false
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.UNSUPPORTED_ON_DEVICE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_voiceCapable_notDataCapable_displayed() {
+        mockTelephonyManager.stub {
+            on { isDataCapable } doReturn false
+            on { isDeviceVoiceCapable } doReturn true
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.AVAILABLE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_notVoiceCapable_dataCapable_displayed() {
+        mockTelephonyManager.stub {
+            on { isDataCapable } doReturn true
+            on { isDeviceVoiceCapable } doReturn false
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.AVAILABLE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_notUserAdmin_notDisplayed() {
+        mockUserManager.stub {
+            on { isAdminUser } doReturn false
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.DISABLED_FOR_USER)
     }
 
     private companion object {

@@ -18,8 +18,10 @@ package com.android.settings.biometrics.face;
 
 import static android.provider.Settings.Secure.FACE_KEYGUARD_ENABLED;
 
+import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.hardware.face.FaceManager;
+import android.os.UserManager;
 import android.provider.Settings;
 
 import androidx.annotation.NonNull;
@@ -35,11 +37,13 @@ public class FaceSettingsKeyguardUnlockPreferenceController extends
     private static final int DEFAULT = ON;
 
     private FaceManager mFaceManager;
+    private UserManager mUserManager;
 
     public FaceSettingsKeyguardUnlockPreferenceController(
             @NonNull Context context, @NonNull String key) {
         super(context, key);
         mFaceManager = Utils.getFaceManagerOrNull(context);
+        mUserManager = context.getSystemService(UserManager.class);
     }
 
     @Override
@@ -50,6 +54,8 @@ public class FaceSettingsKeyguardUnlockPreferenceController extends
 
     @Override
     public boolean setChecked(boolean isChecked) {
+        mMetricsFeatureProvider.action(mContext,
+                SettingsEnums.ACTION_FACE_ENABLED_ON_KEYGUARD_SETTINGS, isChecked);
         return Settings.Secure.putIntForUser(mContext.getContentResolver(),
                 FACE_KEYGUARD_ENABLED, isChecked ? ON : OFF, getUserId());
     }
@@ -70,13 +76,13 @@ public class FaceSettingsKeyguardUnlockPreferenceController extends
 
     @Override
     public int getAvailabilityStatus() {
+        if (mUserManager.isManagedProfile(getUserId()) || !Utils.hasFaceHardware(mContext)) {
+            return UNSUPPORTED_ON_DEVICE;
+        }
         final ActiveUnlockStatusUtils activeUnlockStatusUtils =
                 new ActiveUnlockStatusUtils(mContext);
         if (activeUnlockStatusUtils.isAvailable()) {
             return getAvailabilityFromRestrictingAdmin();
-        }
-        if (!Utils.hasFaceHardware(mContext)) {
-            return UNSUPPORTED_ON_DEVICE;
         }
         return getAvailabilityFromRestrictingAdmin();
     }

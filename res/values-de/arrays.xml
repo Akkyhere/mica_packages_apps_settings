@@ -21,13 +21,13 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
   <string-array name="screen_timeout_entries">
-    <item msgid="8386012403457852396">"nach 15 Sekunden"</item>
-    <item msgid="4572123773028439079">"nach 30 Sekunden"</item>
-    <item msgid="7016081293774377048">"nach 1 Minute"</item>
-    <item msgid="838575533670111144">"nach 2 Minuten"</item>
-    <item msgid="2693197579676214668">"nach 5 Minuten"</item>
-    <item msgid="1955784331962974678">"nach 10 Minuten"</item>
-    <item msgid="5578717731965793584">"nach 30 Minuten"</item>
+    <item msgid="8386012403457852396">"Nach 15 Sekunden"</item>
+    <item msgid="4572123773028439079">"Nach 30 Sekunden"</item>
+    <item msgid="7016081293774377048">"Nach 1 Minute"</item>
+    <item msgid="838575533670111144">"Nach 2 Minuten"</item>
+    <item msgid="2693197579676214668">"Nach 5 Minuten"</item>
+    <item msgid="1955784331962974678">"Nach 10 Minuten"</item>
+    <item msgid="5578717731965793584">"Nach 30 Minuten"</item>
   </string-array>
     <!-- no translation found for dark_ui_scheduler_preference_titles:0 (7465697698048662118) -->
     <!-- no translation found for dark_ui_scheduler_preference_titles:1 (4057198235664064478) -->
@@ -315,6 +315,10 @@
     <item msgid="7397961711906421599">"Mittel"</item>
     <item msgid="4079132024502041928">"Lang"</item>
   </string-array>
+  <string-array name="ethernet_ip_settings">
+    <item msgid="7618681915649929019">"DHCP"</item>
+    <item msgid="4425163520864432692">"Statisch"</item>
+  </string-array>
   <string-array name="captioning_typeface_selector_titles">
     <item msgid="2166553138528640250">"Standard"</item>
     <item msgid="4234707448428002595">"Sans Serif"</item>
@@ -358,10 +362,6 @@
   <string-array name="accessibility_button_location_selector_titles">
     <item msgid="6485511780196327736">"Unverankert über anderen Apps"</item>
     <item msgid="3605616699204153590">"Navigationsleiste"</item>
-  </string-array>
-  <string-array name="accessibility_button_gesture_selector_titles">
-    <item msgid="2370918472773154939">"Schaltfläche"</item>
-    <item msgid="6922258575853746220">"Touch-Geste"</item>
   </string-array>
   <string-array name="accessibility_button_size_selector_titles">
     <item msgid="7482952318152486459">"Klein"</item>
@@ -416,11 +416,11 @@
     <item msgid="2047166446768045816">"Wie „ohne Datenlimit“ behandeln"</item>
   </string-array>
   <string-array name="wifi_privacy_entries">
-    <item msgid="91222619458919148">"Zufällig festgelegte MAC-Adresse verwenden"</item>
+    <item msgid="91222619458919148">"Zufällige MAC-Adresse verwenden"</item>
     <item msgid="741680937828608749">"MAC-Adresse des Geräts verwenden"</item>
   </string-array>
   <string-array name="wifi_dhcp_entries">
-    <item msgid="2532836996945493932">"Gerätenamen an das Netzwerk senden"</item>
+    <item msgid="2532836996945493932">"Gerätenamen an Netzwerk senden"</item>
     <item msgid="7928900271137707489">"Gerätenamen nicht an das Netzwerk senden"</item>
   </string-array>
   <string-array name="wifi_hidden_entries">
@@ -541,5 +541,13 @@
     <item msgid="5421089790869483206">"Uhr"</item>
   </string-array>
   <string-array name="display_over_apps_permission_change_exempt">
+  </string-array>
+  <string-array name="action_corner_action_titles">
+    <item msgid="8199124402836468201">"Keine"</item>
+    <item msgid="321837941231023175">"Startseite"</item>
+    <item msgid="953234843613969792">"Zuletzt aktive Apps"</item>
+    <item msgid="1713942773283586136">"Benachrichtigungen"</item>
+    <item msgid="5687603742365489342">"Schnelleinstellungen"</item>
+    <item msgid="5454862951059393431">"Sperrbildschirm"</item>
   </string-array>
 </resources>

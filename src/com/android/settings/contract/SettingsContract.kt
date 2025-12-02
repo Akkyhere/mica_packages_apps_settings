@@ -16,22 +16,40 @@
 
 package com.android.settings.contract
 
-import android.provider.SettingsSlicesContract
+// NOTES:
+//   - Once a key is added, never modify the literal string.
+//   - Remove a key might cause backward compatibility issues.
+//   - Avoid importing other class to reduce dependency whenever possible.
 
-/** Contract key for the "Airplane Mode" setting. */
-const val KEY_AIRPLANE_MODE = SettingsSlicesContract.KEY_AIRPLANE_MODE
+/**
+ * Contract key for the "Airplane Mode" setting, identical to
+ * [android.provider.SettingsSlicesContract.KEY_AIRPLANE_MODE].
+ */
+const val KEY_AIRPLANE_MODE = "airplane_mode"
 
-/** Contract key for the "Battery Saver" setting. */
-const val KEY_BATTERY_SAVER = SettingsSlicesContract.KEY_BATTERY_SAVER
+/**
+ * Contract key for the "Battery Saver" setting, identical to
+ * [android.provider.SettingsSlicesContract.KEY_BATTERY_SAVER].
+ */
+const val KEY_BATTERY_SAVER = "battery_saver"
 
-/** Contract key for the "Bluetooth" setting. */
-const val KEY_BLUETOOTH = SettingsSlicesContract.KEY_BLUETOOTH
+/**
+ * Contract key for the "Bluetooth" setting, identical to
+ * [android.provider.SettingsSlicesContract.KEY_BLUETOOTH].
+ */
+const val KEY_BLUETOOTH = "bluetooth"
 
-/** Contract key for the "Location" setting. */
-const val KEY_LOCATION = SettingsSlicesContract.KEY_LOCATION
+/**
+ * Contract key for the "Location" setting, identical to
+ * [android.provider.SettingsSlicesContract.KEY_LOCATION].
+ */
+const val KEY_LOCATION = "location"
 
-/** Contract key for the "Wi-fi" setting. */
-const val KEY_WIFI = SettingsSlicesContract.KEY_WIFI
+/**
+ * Contract key for the "Wi-fi" setting, identical to
+ * [android.provider.SettingsSlicesContract.KEY_WIFI].
+ */
+const val KEY_WIFI = "wifi"
 
 /** Contract key for the "Use Wi-Fi calling" setting. */
 const val KEY_WIFI_CALLING = "wifi_calling"
@@ -50,6 +68,12 @@ const val KEY_SCREEN_ATTENTION = "screen_attention"
 
 /** Contract key for the "Use adaptive connectivity" setting. */
 const val KEY_ADAPTIVE_CONNECTIVITY = "adaptive_connectivity"
+
+/** Contract key for the "Auto-switch Wi-Fi to Cellular" setting. */
+const val KEY_ADAPTIVE_WIFI_SCORER = "adaptive_wifi_scorer"
+
+/** Contract key for the " Auto-switch mobile network for battery life" setting. */
+const val KEY_ADAPTIVE_MOBILE_NETWORK = "adaptive_mobile_network"
 
 /** Contract key for the "WiFi hotspot" setting. */
 const val KEY_WIFI_HOTSPOT = "enable_wifi_ap"
@@ -84,5 +108,35 @@ const val KEY_CALL_VOLUME = "call_volume"
 /** Contract key for the "Ring volume" setting. */
 const val KEY_RING_VOLUME = "separate_ring_volume"
 
+/** Contract key for the "Notification volume" setting. */
+const val KEY_NOTIFICATION_VOLUME = "notification_volume"
+
+/** Contract key for the "Alarm volume" setting. */
+const val KEY_ALARM_VOLUME = "alarm_volume"
+
+/**
+ * Contract key for the "Dial pad tones" setting, identical to
+ * [android.provider.Settings.System.DTMF_TONE_WHEN_DIALING].
+ */
+const val KEY_DIAL_PAD_TONE = "dtmf_tone"
+
+/** Contract key for the "Screen locking sound" setting. */
+const val KEY_SCREEN_LOCKING_SOUND = "screen_locking_sound"
+
+/** Contract key for the "Charging sounds and vibration" setting. */
+const val KEY_CHARGING_SOUNDS = "charging_sounds"
+
+/** Contract key for the "Docking sounds" setting. */
+const val KEY_DOCKING_SOUNDS = "docking_sounds"
+
+/** Contract key for the "Tap & click sounds" setting. */
+const val KEY_TOUCH_SOUNDS = "touch_sounds"
+
 /** Contract key for the "Remove animation" setting. */
 const val KEY_REMOVE_ANIMATION = "remove_animation"
+
+/** Contract key for the "Pin media player. */
+const val KEY_PIN_MEDIA_PLAYER = "pin_media_player"
+
+/** Contract key for the "Show media on lock screen. */
+const val KEY_SHOW_MEDIA_ON_LOCK_SCREEN = "show_media_on_lock_screen"

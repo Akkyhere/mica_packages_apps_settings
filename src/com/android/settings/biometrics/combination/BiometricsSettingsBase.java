@@ -22,6 +22,7 @@ import static com.android.settings.password.ChooseLockPattern.RESULT_FINISHED;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.hardware.biometrics.Flags;
 import android.hardware.biometrics.SensorProperties;
 import android.hardware.face.FaceManager;
 import android.hardware.face.FaceSensorPropertiesInternal;
@@ -66,7 +67,7 @@ public abstract class BiometricsSettingsBase extends DashboardFragment {
     @VisibleForTesting
     static final int CONFIRM_REQUEST = 2001;
     private static final int CHOOSE_LOCK_REQUEST = 2002;
-    protected static final int ACTIVE_UNLOCK_REQUEST = 2003;
+    public static final int ACTIVE_UNLOCK_REQUEST = 2003;
     @VisibleForTesting
     static final int BIOMETRIC_AUTH_REQUEST = 2004;
 
@@ -319,7 +320,13 @@ public abstract class BiometricsSettingsBase extends DashboardFragment {
                                     getActivity(),
                                     mBiometricsAuthenticationRequested,
                                     mUserId);
-                    if (biometricAuthStatus == Utils.BiometricStatus.OK) {
+                    if (Flags.bpFallbackOptions()) {
+                        if (biometricAuthStatus != Utils.BiometricStatus.NOT_ACTIVE) {
+                            mBiometricsAuthenticationRequested = true;
+                            Utils.launchBiometricPromptForMandatoryBiometrics(this,
+                                    BIOMETRIC_AUTH_REQUEST, mUserId, true /* hideBackground */);
+                        }
+                    } else if (biometricAuthStatus == Utils.BiometricStatus.OK) {
                         mBiometricsAuthenticationRequested = true;
                         Utils.launchBiometricPromptForMandatoryBiometrics(this,
                                 BIOMETRIC_AUTH_REQUEST,

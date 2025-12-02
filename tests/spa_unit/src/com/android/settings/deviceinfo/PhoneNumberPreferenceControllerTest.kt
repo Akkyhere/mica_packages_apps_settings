@@ -17,6 +17,8 @@
 package com.android.settings.deviceinfo
 
 import android.content.Context
+import android.content.res.Resources
+import android.os.UserManager
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
@@ -25,8 +27,11 @@ import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.android.dx.mockito.inline.extended.ExtendedMockito
 import com.android.settings.R
+import com.android.settings.core.BasePreferenceController
 import com.google.common.truth.Truth.assertThat
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,21 +39,25 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.spy
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
 class PhoneNumberPreferenceControllerTest {
 
+    private val mockUserManager = mock<UserManager>()
     private val mockTelephonyManager = mock<TelephonyManager>()
     private val mockSubscriptionManager = mock<SubscriptionManager>()
+    private val mockResources = mock<Resources>()
 
     private val context: Context =
         spy(ApplicationProvider.getApplicationContext()) {
-            on { getSystemService(SubscriptionManager::class.java) } doReturn
-                mockSubscriptionManager
-
+            on { getSystemService(SubscriptionManager::class.java) } doReturn mockSubscriptionManager
             on { getSystemService(TelephonyManager::class.java) } doReturn mockTelephonyManager
+	    on { getSystemService(Context.TELEPHONY_SERVICE) } doReturn mockTelephonyManager
+            on { getSystemService(UserManager::class.java) } doReturn mockUserManager
+            on { resources } doReturn mockResources
         }
 
     private val subscriptionInfo = mock<SubscriptionInfo>()
@@ -61,6 +70,18 @@ class PhoneNumberPreferenceControllerTest {
 
     @Before
     fun setup() {
+        // By default, available
+        mockTelephonyManager.stub {
+            on { isDataCapable } doReturn true
+            on { isDeviceVoiceCapable } doReturn true
+        }
+        mockResources.stub {
+            on { getBoolean(R.bool.config_show_sim_info) } doReturn true
+        }
+        mockUserManager.stub {
+            on { isAdminUser } doReturn true
+        }
+
         preference.setKey(controller.preferenceKey)
         preference.isVisible = true
         preferenceScreen.addPreference(preference)
@@ -131,5 +152,65 @@ class PhoneNumberPreferenceControllerTest {
         controller.updateState(preference)
 
         verify(preference).summary = context.getString(R.string.device_info_not_available)
+    }
+
+    @Test
+    fun getAvailabilityStatus_default_displayed() {
+        // Use defaults from setup()
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.AVAILABLE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_noShowSimInfo_notDisplayed() {
+        mockResources.stub {
+            on { getBoolean(R.bool.config_show_sim_info) } doReturn false
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.UNSUPPORTED_ON_DEVICE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_voiceCapable_notDataCapable_displayed() {
+        mockTelephonyManager.stub {
+            on { isDeviceVoiceCapable } doReturn true
+            on { isDataCapable } doReturn false
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.AVAILABLE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_notVoiceCapable_dataCapable_displayed() {
+        mockTelephonyManager.stub {
+            on { isDeviceVoiceCapable } doReturn false
+            on { isDataCapable } doReturn true
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.AVAILABLE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_notVoiceCapable_notDataCapable_notDisplayed() {
+        mockTelephonyManager.stub {
+            on { isDeviceVoiceCapable } doReturn false
+            on { isDataCapable } doReturn false
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.UNSUPPORTED_ON_DEVICE)
+    }
+
+    @Test
+    fun getAvailabilityStatus_notUserAdmin_notDisplayed() {
+        mockUserManager.stub {
+            on { isAdminUser } doReturn false
+        }
+
+        val availabilityStatus = controller.availabilityStatus
+        assertThat(availabilityStatus).isEqualTo(BasePreferenceController.DISABLED_FOR_USER)
     }
 }

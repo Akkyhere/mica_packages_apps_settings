@@ -18,45 +18,43 @@ package com.android.settings.accessibility
 import android.app.settings.SettingsEnums.ACTION_VIBRATION_HAPTICS
 import android.content.Context
 import android.os.VibrationAttributes
+import android.os.VibrationAttributes.Usage
 import android.os.Vibrator
-import android.provider.Settings
-import android.widget.CompoundButton
-import android.widget.CompoundButton.OnCheckedChangeListener
-import com.android.settings.PreferenceActionMetricsProvider
+import android.provider.Settings.System.VIBRATE_ON
+import androidx.preference.Preference
+import androidx.preference.TwoStatePreference
 import com.android.settings.R
+import com.android.settings.accessibility.VibrationMainSwitchPreference.Companion.DEFAULT_VALUE
 import com.android.settings.contract.KEY_VIBRATION_HAPTICS
+import com.android.settings.metrics.PreferenceActionMetricsProvider
 import com.android.settingslib.datastore.KeyValueStore
-import com.android.settingslib.datastore.KeyedObservableDelegate
-import com.android.settingslib.datastore.SettingsStore
 import com.android.settingslib.datastore.SettingsSystemStore
-import com.android.settingslib.metadata.MainSwitchPreference
-import com.android.settingslib.metadata.PreferenceLifecycleContext
-import com.android.settingslib.metadata.PreferenceLifecycleProvider
+import com.android.settingslib.metadata.BooleanValuePreference
+import com.android.settingslib.metadata.PreferenceMetadata
 import com.android.settingslib.metadata.ReadWritePermit
 import com.android.settingslib.metadata.SensitivityLevel
+import com.android.settingslib.widget.MainSwitchPreferenceBinding
 
 /** Accessibility settings for vibration. */
 // LINT.IfChange
-class VibrationMainSwitchPreference :
-    MainSwitchPreference(
-        key = Settings.System.VIBRATE_ON,
-        title = R.string.accessibility_vibration_primary_switch_title,
-    ),
+class VibrationMainSwitchPreference(override val key: String) :
+    BooleanValuePreference,
+    MainSwitchPreferenceBinding,
     PreferenceActionMetricsProvider,
-    PreferenceLifecycleProvider,
-    OnCheckedChangeListener {
+    Preference.OnPreferenceChangeListener {
+
+    override val title
+        get() = R.string.accessibility_vibration_primary_switch_title
+
     override val keywords: Int
         get() = R.string.keywords_accessibility_vibration_primary_switch
-
-    lateinit var vibrator: Vibrator
 
     override val preferenceActionMetrics: Int
         get() = ACTION_VIBRATION_HAPTICS
 
     override fun tags(context: Context) = arrayOf(KEY_VIBRATION_HAPTICS)
 
-    override fun storage(context: Context): KeyValueStore =
-        VibrationMainSwitchToggleStorage(SettingsSystemStore.get(context))
+    override fun storage(context: Context): KeyValueStore = VibrationMainSwitchStore(context, key)
 
     override fun getReadPermissions(context: Context) = SettingsSystemStore.getReadPermissions()
 
@@ -65,59 +63,47 @@ class VibrationMainSwitchPreference :
 
     override fun getWritePermissions(context: Context) = SettingsSystemStore.getWritePermissions()
 
-    override fun getWritePermit(
-        context: Context,
-        value: Boolean?,
-        callingPid: Int,
-        callingUid: Int,
-    ) = ReadWritePermit.ALLOW
+    override fun getWritePermit(context: Context, callingPid: Int, callingUid: Int) =
+        ReadWritePermit.ALLOW
 
     override val sensitivityLevel: Int
         get() = SensitivityLevel.NO_SENSITIVITY
 
-    override fun onResume(context: PreferenceLifecycleContext) {
-        vibrator = context.getSystemService(Vibrator::class.java)
-        context
-            .findPreference<com.android.settingslib.widget.MainSwitchPreference>(key)
-            ?.addOnSwitchChangeListener(this)
+    override fun bind(preference: Preference, metadata: PreferenceMetadata) {
+        super.bind(preference, metadata)
+        preference.onPreferenceChangeListener = this
     }
 
-    override fun onPause(context: PreferenceLifecycleContext) {
-        context
-            .findPreference<com.android.settingslib.widget.MainSwitchPreference>(key)
-            ?.removeOnSwitchChangeListener(this)
-    }
-
-    override fun onCheckedChanged(button: CompoundButton, isChecked: Boolean) {
+    override fun onPreferenceChange(preference: Preference, newValue: Any?): Boolean {
+        val isChecked = newValue as Boolean
+        // must make new value effective before preview
+        (preference as TwoStatePreference).setChecked(isChecked)
         if (isChecked) {
             // Play a haptic as preview for the main toggle only when touch feedback is enabled.
-            VibrationPreferenceConfig.playVibrationPreview(
-                vibrator,
-                VibrationAttributes.USAGE_TOUCH,
-            )
+            preference.context.playVibrationSettingsPreview(VibrationAttributes.USAGE_TOUCH)
         }
-    }
-
-    /** Provides SettingsStore for vibration main switch with custom default value. */
-    @Suppress("UNCHECKED_CAST")
-    private class VibrationMainSwitchToggleStorage(private val settingsStore: SettingsStore) :
-        KeyedObservableDelegate<String>(settingsStore), KeyValueStore {
-
-        override fun contains(key: String) = settingsStore.contains(key)
-
-        override fun <T : Any> getDefaultValue(key: String, valueType: Class<T>) =
-            DEFAULT_VALUE as T
-
-        override fun <T : Any> getValue(key: String, valueType: Class<T>) =
-            (settingsStore.getBoolean(key) ?: DEFAULT_VALUE) as T
-
-        override fun <T : Any> setValue(key: String, valueType: Class<T>, value: T?) {
-            settingsStore.setBoolean(key, value as Boolean?)
-        }
+        return false // value has been updated
     }
 
     companion object {
         const val DEFAULT_VALUE = true
     }
 }
+
+/** Provides SettingsStore for vibration main switch with custom default value. */
+class VibrationMainSwitchStore(context: Context, key: String = VIBRATE_ON) :
+    VibrationToggleSettingsStore(
+        context,
+        preferenceKey = key,
+        settingsProviderKey = VIBRATE_ON,
+        defaultValue = DEFAULT_VALUE,
+    )
+
+/** Play vibration preview for given usage. */
+fun Context.playVibrationSettingsPreview(@Usage vibrationUsage: Int) {
+    getSystemService(Vibrator::class.java)?.let {
+        VibrationPreferenceConfig.playVibrationPreview(it, vibrationUsage)
+    }
+}
+
 // LINT.ThenChange(VibrationMainSwitchPreferenceController.java)

@@ -16,9 +16,12 @@
 
 package com.android.settings.safetycenter;
 
+import static com.android.settings.biometrics.BiometricEnrollActivity.EXTRA_LAUNCH_FACE_ENROLL_FIRST;
 import static com.android.settings.safetycenter.BiometricSourcesUtils.REQUEST_CODE_FACE_SETTING;
 
+import android.app.admin.EnforcingAdmin;
 import android.content.Context;
+import android.content.Intent;
 import android.hardware.face.FaceManager;
 import android.os.Bundle;
 import android.os.Process;
@@ -27,8 +30,10 @@ import android.os.UserManager;
 import android.safetycenter.SafetyEvent;
 
 import com.android.settings.Utils;
+import com.android.settings.biometrics.BiometricEnrollActivity;
 import com.android.settings.biometrics.BiometricNavigationUtils;
 import com.android.settings.biometrics.face.FaceStatusUtils;
+import com.android.settings.flags.Flags;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settingslib.RestrictedLockUtils;
 
@@ -44,17 +49,17 @@ public final class FaceSafetySource {
         if (!SafetyCenterManagerWrapper.get().isEnabled(context)) {
             return;
         }
+        if (!Flags.biometricsOnboardingEducation()) { // this source is effectively turned off
+            sendNullData(context, safetyEvent);
+            return;
+        }
 
         // Handle private profile case
         UserManager userManager = UserManager.get(context);
-        if (android.os.Flags.allowPrivateProfile()
-                && android.multiuser.Flags.enablePrivateSpaceFeatures()
-                && userManager.isPrivateProfile()) {
+        if (userManager.isPrivateProfile()) {
             // SC always expects a response from the source if the broadcast has been sent for this
             // source, therefore, we need to send a null SafetySourceData.
-            SafetyCenterManagerWrapper.get()
-                    .setSafetySourceData(
-                            context, SAFETY_SOURCE_ID, /* safetySourceData= */ null, safetyEvent);
+            sendNullData(context, safetyEvent);
             return;
         }
 
@@ -70,7 +75,31 @@ public final class FaceSafetySource {
         Context profileParentContext = context.createContextAsUser(profileParentUserHandle, 0);
 
         if (Utils.hasFaceHardware(context)) {
-            RestrictedLockUtils.EnforcedAdmin disablingAdmin = faceStatusUtils.getDisablingAdmin();
+            boolean isMultipleBiometricsEnrollmentNeeded =
+                    BiometricSourcesUtils.isMultipleBiometricsEnrollmentNeeded(context, userId);
+            String settingClassName = isMultipleBiometricsEnrollmentNeeded
+                    ? BiometricEnrollActivity.InternalActivity.class.getName()
+                    : faceStatusUtils.getSettingsClassName();
+            Bundle bundle = new Bundle();
+            if (isMultipleBiometricsEnrollmentNeeded) {
+                // Launch face enrollment first then fingerprint enrollment.
+                bundle.putBoolean(EXTRA_LAUNCH_FACE_ENROLL_FIRST, true);
+            }
+            Intent biometricSettingsIntent;
+            boolean isFaceDisabledByAdmin;
+            if (android.app.admin.flags.Flags.policyTransparencyRefactorEnabled()
+                    && android.app.admin.flags.Flags.setKeyguardDisabledFeaturesCoexistence()) {
+                EnforcingAdmin admin = faceStatusUtils.getEnforcingAdmin();
+                isFaceDisabledByAdmin = admin != null;
+                biometricSettingsIntent = biometricNavigationUtils.getBiometricSettingsIntent(
+                        context, settingClassName, admin, bundle);
+            } else {
+                RestrictedLockUtils.EnforcedAdmin disablingAdmin =
+                        faceStatusUtils.getDisablingAdmin();
+                isFaceDisabledByAdmin = disablingAdmin != null;
+                biometricSettingsIntent = biometricNavigationUtils.getBiometricSettingsIntent(
+                        context, settingClassName, disablingAdmin, bundle);
+            }
             BiometricSourcesUtils.setBiometricSafetySourceData(
                     SAFETY_SOURCE_ID,
                     context,
@@ -78,15 +107,9 @@ public final class FaceSafetySource {
                     faceStatusUtils.getSummary(),
                     BiometricSourcesUtils.createPendingIntent(
                             profileParentContext,
-                            biometricNavigationUtils
-                                    .getBiometricSettingsIntent(
-                                            context,
-                                            faceStatusUtils.getSettingsClassName(),
-                                            disablingAdmin,
-                                            Bundle.EMPTY)
-                                    .setIdentifier(Integer.toString(userId)),
+                            biometricSettingsIntent.setIdentifier(Integer.toString(userId)),
                             REQUEST_CODE_FACE_SETTING),
-                    disablingAdmin == null /* enabled */,
+                    !isFaceDisabledByAdmin,
                     faceStatusUtils.hasEnrolled(),
                     safetyEvent,
                     FeatureFactory.getFeatureFactory().getBiometricsFeatureProvider()
@@ -95,6 +118,10 @@ public final class FaceSafetySource {
             return;
         }
 
+        sendNullData(context, safetyEvent);
+    }
+
+    private static void sendNullData(Context context, SafetyEvent safetyEvent) {
         SafetyCenterManagerWrapper.get()
                 .setSafetySourceData(
                         context, SAFETY_SOURCE_ID, /* safetySourceData= */ null, safetyEvent);

@@ -57,6 +57,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
+import androidx.preference.Preference;
 import androidx.test.core.app.ApplicationProvider;
 
 import com.android.internal.app.LocaleStore;
@@ -97,6 +98,8 @@ public class LocaleListEditorTest {
     public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     private static final String ARG_DIALOG_TYPE = "arg_dialog_type";
+    private static final String
+            ARG_SHOW_DIALOG_FOR_NOT_TRANSLATED = "arg_show_dialog_for_not_translated";
     private static final String TAG_DIALOG_CONFIRM_SYSTEM_DEFAULT = "dialog_confirm_system_default";
     private static final String TAG_DIALOG_NOT_AVAILABLE = "dialog_not_available_locale";
     private static final String TAG_DIALOG_ADD_SYSTEM_LOCALE = "dialog_add_system_locale";
@@ -119,6 +122,10 @@ public class LocaleListEditorTest {
     private Resources mResources;
     @Mock
     private LocaleStore.LocaleInfo mLocaleInfo;
+    @Mock
+    private LocaleStore.LocaleInfo mLocaleInfo1;
+    @Mock
+    private LocaleStore.LocaleInfo mLocaleInfo2;
     @Mock
     private FragmentManager mFragmentManager;
     @Mock
@@ -143,6 +150,8 @@ public class LocaleListEditorTest {
     private ImageView mDragHandle;
     @Mock
     private NotificationController mNotificationController;
+    @Mock
+    private Preference mAddLanguagePreference;
 
     @Rule
     public final CheckFlagsRule mCheckFlagsRule =
@@ -166,6 +175,8 @@ public class LocaleListEditorTest {
                 context.getSystemService(Context.USER_SERVICE));
         ReflectionHelpers.setField(mLocaleListEditor, "mAdapter", mAdapter);
         ReflectionHelpers.setField(mLocaleListEditor, "mAddLanguage", mAddLanguage);
+        ReflectionHelpers.setField(mLocaleListEditor, "mAddLanguagePreference",
+                mAddLanguagePreference);
         ReflectionHelpers.setField(mLocaleListEditor, "mFragmentManager", mFragmentManager);
         ReflectionHelpers.setField(mLocaleListEditor, "mMetricsFeatureProvider",
                 mMetricsFeatureProvider);
@@ -215,13 +226,14 @@ public class LocaleListEditorTest {
 
         final ShadowAlertDialogCompat shadowDialog = ShadowAlertDialogCompat.shadowOf(dialog);
 
-        assertThat(shadowDialog.getTitle()).isEqualTo(
+        assertThat(shadowDialog.getTitle().toString()).isEqualTo(
                 mContext.getString(R.string.dlg_remove_locales_error_title));
     }
 
     @Test
     public void showRemoveLocaleWarningDialog_mainLocaleSelected_shouldShowLocaleChangeDialog() {
         //pre-condition
+        setUpLocaleConditions2();
         when(mAdapter.getCheckedCount()).thenReturn(1);
         when(mAdapter.getItemCount()).thenReturn(2);
         when(mAdapter.isFirstLocaleChecked()).thenReturn(true);
@@ -237,8 +249,8 @@ public class LocaleListEditorTest {
 
         final ShadowAlertDialogCompat shadowDialog = ShadowAlertDialogCompat.shadowOf(dialog);
 
-        assertThat(shadowDialog.getMessage()).isEqualTo(
-                mContext.getString(R.string.dlg_remove_locales_message));
+        assertThat(shadowDialog.getMessage().toString()).isEqualTo(
+                mContext.getString(R.string.dlg_remove_locales_message, "Anii (Benin)"));
     }
 
     @Test
@@ -263,17 +275,18 @@ public class LocaleListEditorTest {
     }
 
     @Test
-    public void showConfirmDialog_systemLocaleSelected_shouldShowLocaleChangeDialog()
+    public void showConfirmDialog_2ndLocaleSelected_shouldShowLocaleChangeDialog()
             throws Exception {
         //pre-condition
-        setUpLocaleConditions();
+        Locale.setDefault(Locale.forLanguageTag("en-US"));
+        setUpLocaleConditions2();
         final Configuration config = new Configuration();
-        config.setLocales((LocaleList.forLanguageTags("zh-TW,en-US")));
+        config.setLocales((LocaleList.forLanguageTags("blo-BJ,en-US,zh-TW")));
         when(mActivityService.getConfiguration()).thenReturn(config);
         when(mAdapter.getFeedItemList()).thenReturn(mLocaleList);
         when(mAdapter.getCheckedCount()).thenReturn(1);
-        when(mAdapter.getItemCount()).thenReturn(2);
-        when(mAdapter.isFirstLocaleChecked()).thenReturn(true);
+        when(mAdapter.getItemCount()).thenReturn(3);
+        when(mAdapter.isFirstLocaleChecked()).thenReturn(false);
         ReflectionHelpers.setField(mLocaleListEditor, "mRemoveMode", true);
         ReflectionHelpers.setField(mLocaleListEditor, "mShowingRemoveDialog", true);
 
@@ -295,6 +308,7 @@ public class LocaleListEditorTest {
                 eq(TAG_DIALOG_CONFIRM_SYSTEM_DEFAULT));
     }
 
+
     @Test
     public void mayAppendUnicodeTags_appendUnicodeTags_success() {
         LocaleStore.LocaleInfo localeInfo = LocaleStore.fromLocale(Locale.forLanguageTag("en-US"));
@@ -311,7 +325,8 @@ public class LocaleListEditorTest {
         Bundle bundle = new Bundle();
         bundle.putInt(ARG_DIALOG_TYPE, DIALOG_CONFIRM_SYSTEM_DEFAULT);
         mIntent.putExtras(bundle);
-        setUpLocaleConditions();
+        mIntent.putExtra(ARG_SHOW_DIALOG_FOR_NOT_TRANSLATED, true);
+        setUpLocaleConditions(false);
         mLocaleListEditor.onActivityResult(REQUEST_CONFIRM_SYSTEM_DEFAULT, Activity.RESULT_OK,
                 mIntent);
 
@@ -324,17 +339,18 @@ public class LocaleListEditorTest {
         Bundle bundle = new Bundle();
         bundle.putInt(ARG_DIALOG_TYPE, DIALOG_CONFIRM_SYSTEM_DEFAULT);
         mIntent.putExtras(bundle);
-        setUpLocaleConditions();
+        setUpLocaleConditions(true);
         mLocaleListEditor.onActivityResult(REQUEST_CONFIRM_SYSTEM_DEFAULT, Activity.RESULT_CANCELED,
                 mIntent);
 
-        verify(mAdapter).notifyListChanged(mLocaleInfo);
+        verify(mAdapter).notifyListChanged();
     }
 
     @Test
     public void onTouch_dragDifferentLocaleToTop_showConfirmDialog() throws Exception {
         MotionEvent event = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_UP, 0.0f, 0.0f, 0);
-        setUpLocaleConditions();
+        Locale.setDefault(Locale.forLanguageTag("zh-TW"));
+        setUpLocaleConditions(true);
         final Configuration config = new Configuration();
         config.setLocales((LocaleList.forLanguageTags("zh-TW,en-US")));
         when(mActivityService.getConfiguration()).thenReturn(config);
@@ -348,7 +364,7 @@ public class LocaleListEditorTest {
     @Test
     public void onTouch_dragSameLocaleToTop_updateAdapter() throws Exception {
         MotionEvent event = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_UP, 0.0f, 0.0f, 0);
-        setUpLocaleConditions();
+        setUpLocaleConditions(true);
         final Configuration config = new Configuration();
         config.setLocales((LocaleList.forLanguageTags("en-US,zh-TW")));
         when(mActivityService.getConfiguration()).thenReturn(config);
@@ -486,12 +502,27 @@ public class LocaleListEditorTest {
         verify(mAdapter).setCheckBoxDescription(any(LocaleDragCell.class), any(), anyBoolean());
     }
 
-    private void setUpLocaleConditions() {
+    private void setUpLocaleConditions(boolean isTranslated) {
         ShadowActivityManager.setService(mActivityService);
         mLocaleList = new ArrayList<>();
         mLocaleList.add(mLocaleInfo);
         when(mLocaleInfo.getFullNameNative()).thenReturn("English");
         when(mLocaleInfo.getLocale()).thenReturn(LocaleList.forLanguageTags("en-US").get(0));
+        when(mLocaleInfo.isTranslated()).thenReturn(isTranslated);
+        when(mAdapter.getFeedItemList()).thenReturn(mLocaleList);
+    }
+
+    private void setUpLocaleConditions2() {
+        ShadowActivityManager.setService(mActivityService);
+        mLocaleList = new ArrayList<>();
+        mLocaleList.add(mLocaleInfo);
+        mLocaleList.add(mLocaleInfo1);
+        mLocaleList.add(mLocaleInfo2);
+        when(mLocaleInfo.getLocale()).thenReturn(Locale.forLanguageTag("blo-BJ"));
+        when(mLocaleInfo.isTranslated()).thenReturn(false);
+        when(mLocaleInfo.getFullNameNative()).thenReturn("Anii (Benin)");
+        when(mLocaleInfo2.getLocale()).thenReturn(Locale.forLanguageTag("zh-TW"));
+        when(mLocaleInfo2.isTranslated()).thenReturn(true);
         when(mAdapter.getFeedItemList()).thenReturn(mLocaleList);
     }
 }

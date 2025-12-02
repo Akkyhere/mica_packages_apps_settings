@@ -18,8 +18,11 @@ package com.android.settings.biometrics.face;
 
 import static android.provider.Settings.Secure.FACE_APP_ENABLED;
 
+import android.app.settings.SettingsEnums;
 import android.content.Context;
+import android.hardware.biometrics.SensorProperties;
 import android.hardware.face.FaceManager;
+import android.hardware.face.FaceSensorPropertiesInternal;
 import android.provider.Settings;
 
 import androidx.annotation.NonNull;
@@ -35,10 +38,21 @@ public class FaceSettingsAppsPreferenceController extends
     private static final int DEFAULT = ON;
 
     private FaceManager mFaceManager;
+    private boolean mIsAllowed;
 
     public FaceSettingsAppsPreferenceController(@NonNull Context context, @NonNull String key) {
         super(context, key);
         mFaceManager = Utils.getFaceManagerOrNull(context);
+        if (mFaceManager != null) {
+            for (final FaceSensorPropertiesInternal sensorProps
+                    : mFaceManager.getSensorPropertiesInternal()) {
+                if (sensorProps.sensorStrength == SensorProperties.STRENGTH_WEAK
+                        || sensorProps.sensorStrength == SensorProperties.STRENGTH_STRONG) {
+                    mIsAllowed = true;
+                    break;
+                }
+            }
+        }
     }
 
     @Override
@@ -49,6 +63,8 @@ public class FaceSettingsAppsPreferenceController extends
 
     @Override
     public boolean setChecked(boolean isChecked) {
+        mMetricsFeatureProvider.action(mContext,
+                SettingsEnums.ACTION_FACE_ENABLED_FOR_APP_SETTINGS, isChecked);
         return Settings.Secure.putIntForUser(mContext.getContentResolver(), FACE_APP_ENABLED,
                 isChecked ? ON : OFF, getUserId());
     }
@@ -71,8 +87,8 @@ public class FaceSettingsAppsPreferenceController extends
     public int getAvailabilityStatus() {
         final ActiveUnlockStatusUtils activeUnlockStatusUtils =
                 new ActiveUnlockStatusUtils(mContext);
-        if (!Utils.hasFaceHardware(mContext)
-                && !activeUnlockStatusUtils.isAvailable()) {
+        if ((!Utils.hasFaceHardware(mContext)
+                && !activeUnlockStatusUtils.isAvailable()) || !mIsAllowed) {
             return UNSUPPORTED_ON_DEVICE;
         }
         if (mFaceManager == null) {

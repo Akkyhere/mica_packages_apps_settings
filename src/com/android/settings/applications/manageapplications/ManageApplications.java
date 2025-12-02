@@ -49,6 +49,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageItemInfo;
 import android.content.pm.UserInfo;
 import android.content.res.Configuration;
+import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
@@ -78,6 +79,7 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.Filter;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.SearchView;
 import android.widget.Spinner;
 import android.widget.Toast;
@@ -172,6 +174,7 @@ import com.android.settingslib.applications.ApplicationsState.VolumeFilter;
 import com.android.settingslib.fuelgauge.PowerAllowlistBackend;
 import com.android.settingslib.utils.ThreadUtils;
 import com.android.settingslib.widget.SettingsSpinnerAdapter;
+import com.android.settingslib.widget.SettingsThemeHelper;
 
 import com.google.android.material.appbar.AppBarLayout;
 
@@ -270,6 +273,8 @@ public class ManageApplications extends InstrumentedFragment
     public static final int LIST_TYPE_NFC_TAG_APPS = 18;
     public static final int LIST_TYPE_TURN_SCREEN_ON = 19;
     public static final int LIST_TYPE_USER_ASPECT_RATIO_APPS = 20;
+    public static final int LIST_TYPE_NOTIFICATION_EXCLUDE_SUMMARIZATION = 21;
+    public static final int LIST_TYPE_NOTIFICATION_EXCLUDE_CLASSIFICATION = 22;
 
     // List types that should show instant apps.
     public static final Set<Integer> LIST_TYPES_WITH_INSTANT = new ArraySet<>(Arrays.asList(
@@ -444,7 +449,19 @@ public class ManageApplications extends InstrumentedFragment
 
         mRootView = inflater.inflate(R.layout.manage_applications_apps, null);
         mLoadingContainer = mRootView.findViewById(R.id.loading_container);
-        mEmptyView = mRootView.findViewById(android.R.id.empty);
+        if (!SettingsThemeHelper.isExpressiveTheme(getContext())) {
+            mEmptyView = mRootView.findViewById(android.R.id.empty);
+            mRootView.findViewById(R.id.zero_state).setVisibility(View.INVISIBLE);
+        } else {
+            mEmptyView = mRootView.findViewById(R.id.zero_state);
+            mRootView.findViewById(android.R.id.empty).setVisibility(View.INVISIBLE);
+
+            ImageView emptyViewIcon = mRootView.findViewById(android.R.id.icon);
+            int iconTint = getContext().getColor(
+                    com.android.settingslib.widget.theme.R.color.settingslib_materialColorOnSurface
+            );
+            emptyViewIcon.setColorFilter(iconTint, PorterDuff.Mode.SRC_IN);
+        }
         mRecyclerView = mRootView.findViewById(R.id.apps_list);
 
         mApplications = new ApplicationsAdapter(mApplicationsState, this, mFilter,
@@ -1044,6 +1061,9 @@ public class ManageApplications extends InstrumentedFragment
                 new AppBarLayout.Behavior.DragCallback() {
                     @Override
                     public boolean canDrag(@NonNull AppBarLayout appBarLayout) {
+                        if (SettingsThemeHelper.isExpressiveTheme(appBarLayout.getContext())) {
+                            return false;
+                        }
                         return appBarLayout.getResources().getConfiguration().orientation
                                 == Configuration.ORIENTATION_LANDSCAPE;
                     }

@@ -21,6 +21,8 @@ import static com.android.settingslib.bluetooth.LocalBluetoothLeBroadcastAssista
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothLeBroadcastMetadata;
 import android.bluetooth.BluetoothLeBroadcastReceiveState;
+import android.content.ComponentName;
+import android.content.Context;
 
 import androidx.annotation.Nullable;
 
@@ -33,14 +35,18 @@ import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
 import org.robolectric.annotation.Resetter;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Implements(value = AudioStreamsHelper.class, callThroughByDefault = true)
 public class ShadowAudioStreamsHelper {
     private static AudioStreamsHelper sMockHelper;
     @Nullable private static CachedBluetoothDevice sCachedBluetoothDevice;
+    @Nullable private static BluetoothDevice sBluetoothDevice;
+    @Nullable private static ComponentName sEnabledScreenReaderService;
 
     public static void setUseMock(AudioStreamsHelper mockAudioStreamsHelper) {
         sMockHelper = mockAudioStreamsHelper;
@@ -51,11 +57,21 @@ public class ShadowAudioStreamsHelper {
     public static void reset() {
         sMockHelper = null;
         sCachedBluetoothDevice = null;
+        sEnabledScreenReaderService = null;
+        sBluetoothDevice = null;
     }
 
     public static void setCachedBluetoothDeviceInSharingOrLeConnected(
             CachedBluetoothDevice cachedBluetoothDevice) {
         sCachedBluetoothDevice = cachedBluetoothDevice;
+    }
+
+    public static void setConnectedBluetoothDevice(BluetoothDevice bluetoothDevice) {
+        sBluetoothDevice = bluetoothDevice;
+    }
+
+    public static void setEnabledScreenReaderService(ComponentName componentName) {
+        sEnabledScreenReaderService = componentName;
     }
 
     @Implementation
@@ -74,6 +90,22 @@ public class ShadowAudioStreamsHelper {
     public static Optional<CachedBluetoothDevice> getCachedBluetoothDeviceInSharingOrLeConnected(
             LocalBluetoothManager manager) {
         return Optional.ofNullable(sCachedBluetoothDevice);
+    }
+
+    /** Gets {@link BluetoothDevice} that is le connected */
+    @Implementation
+    public static List<BluetoothDevice> getConnectedBluetoothDevices(
+            LocalBluetoothManager manager, boolean inSharingOnly) {
+        return sBluetoothDevice == null ? Collections.emptyList() : List.of(sBluetoothDevice);
+    }
+
+    /** Retrieves a set of enabled screen reader services that are pre-installed. */
+    @Implementation
+    public static Set<ComponentName> getEnabledScreenReaderServices(Context context) {
+        if (sEnabledScreenReaderService != null) {
+            return Set.of(sEnabledScreenReaderService);
+        }
+        return Collections.emptySet();
     }
 
     @Implementation

@@ -19,30 +19,30 @@ package com.android.settings.inputmethod;
 import static android.view.WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.app.Dialog;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.Window;
+import android.widget.Button;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
-import android.widget.SeekBar;
 import android.widget.TextView;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.DialogFragment;
 
 import com.android.settings.R;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 
+import com.google.android.material.slider.Slider;
+
 import org.jspecify.annotations.Nullable;
 
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public abstract class KeyboardAccessibilityKeysDialogFragment extends DialogFragment {
-    private static final int CUSTOM_PROGRESS_INTERVAL = 100;
     private static final long MILLISECOND_IN_SECONDS = TimeUnit.SECONDS.toMillis(1);
     protected static final String EXTRA_TITLE_RES = "extra_title_res";
     protected static final String EXTRA_SUBTITLE_RES = "extra_subtitle_res";
@@ -73,41 +73,46 @@ public abstract class KeyboardAccessibilityKeysDialogFragment extends DialogFrag
         int seekbarContentDescriptionRes = getArguments().getInt(EXTRA_SEEKBAR_CONTENT_DESCRIPTION);
 
         Activity activity = getActivity();
-        View dialoglayout =
-                LayoutInflater.from(activity).inflate(
-                        R.layout.dialog_keyboard_a11y_input_setting_keys, null);
         AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(activity);
+        View dialoglayout =
+                LayoutInflater.from(/*dialogBuilder.getContext()*/activity).inflate(
+                        R.layout.dialog_keyboard_a11y_input_setting_keys, null);
         dialogBuilder.setView(dialoglayout);
-        dialogBuilder.setPositiveButton(android.R.string.ok,
-                        (dialog, which) -> {
-                            RadioGroup radioGroup =
-                                    dialoglayout.findViewById(
-                                            R.id.input_setting_keys_value_group);
-                            SeekBar seekbar = dialoglayout.findViewById(
-                                    R.id.input_setting_keys_value_custom_slider);
-                            RadioButton customRadioButton = dialoglayout.findViewById(
-                                    R.id.input_setting_keys_value_custom);
-                            int threshold;
-                            if (customRadioButton.isChecked()) {
-                                threshold = seekbar.getProgress() * CUSTOM_PROGRESS_INTERVAL;
-                            } else {
-                                int checkedRadioButtonId = radioGroup.getCheckedRadioButtonId();
-                                if (checkedRadioButtonId == R.id.input_setting_keys_value_600) {
-                                    threshold = 600;
-                                } else if (checkedRadioButtonId
-                                        == R.id.input_setting_keys_value_400) {
-                                    threshold = 400;
-                                } else if (checkedRadioButtonId
-                                        == R.id.input_setting_keys_value_200) {
-                                    threshold = 200;
-                                } else {
-                                    threshold = 0;
-                                }
-                            }
-                            updateInputSettingKeysValue(threshold);
-                            onCustomValueUpdated(threshold);
-                        })
-                .setNegativeButton(android.R.string.cancel, (dialog, which) -> dialog.dismiss());
+        Button doneButton = dialoglayout.findViewById(R.id.done_button);
+        doneButton.setOnClickListener(v -> {
+            RadioGroup radioGroup =
+                    dialoglayout.findViewById(
+                            R.id.input_setting_keys_value_group);
+            Slider slider = dialoglayout.findViewById(
+                    R.id.input_setting_keys_value_custom_slider);
+            RadioButton customRadioButton = dialoglayout.findViewById(
+                    R.id.input_setting_keys_value_custom);
+            int threshold;
+            if (customRadioButton.isChecked()) {
+                threshold = (int) (slider.getValue() * MILLISECOND_IN_SECONDS);
+            } else {
+                int checkedRadioButtonId = radioGroup.getCheckedRadioButtonId();
+                if (checkedRadioButtonId == R.id.input_setting_keys_value_600) {
+                    threshold = 600;
+                } else if (checkedRadioButtonId
+                        == R.id.input_setting_keys_value_400) {
+                    threshold = 400;
+                } else if (checkedRadioButtonId
+                        == R.id.input_setting_keys_value_200) {
+                    threshold = 200;
+                } else {
+                    threshold = 0;
+                }
+            }
+            updateInputSettingKeysValue(threshold);
+            onCustomValueUpdated(threshold);
+            dismiss();
+        });
+
+        Button cancelButton = dialoglayout.findViewById(R.id.cancel_button);
+        cancelButton.setOnClickListener(v -> {
+            dismiss();
+        });
         AlertDialog accessibilityKeyDialog = dialogBuilder.create();
         accessibilityKeyDialog.setOnShowListener(dialog -> {
             RadioGroup cannedValueRadioGroup = accessibilityKeyDialog.findViewById(
@@ -116,7 +121,9 @@ public abstract class KeyboardAccessibilityKeysDialogFragment extends DialogFrag
                     R.id.input_setting_keys_value_custom);
             TextView customValueTextView = accessibilityKeyDialog.findViewById(
                     R.id.input_setting_keys_value_custom_value);
-            SeekBar customProgressBar = accessibilityKeyDialog.findViewById(
+            View seekbarView = accessibilityKeyDialog.findViewById(
+                    R.id.input_setting_keys_custom_seekbar_layout);
+            Slider customProgressSlider = accessibilityKeyDialog.findViewById(
                     R.id.input_setting_keys_value_custom_slider);
             TextView titleTextView = accessibilityKeyDialog.findViewById(
                     R.id.input_setting_keys_dialog_title);
@@ -126,11 +133,9 @@ public abstract class KeyboardAccessibilityKeysDialogFragment extends DialogFrag
             subTitleTextView.setText(subtitleRes);
 
             if (seekbarContentDescriptionRes != 0) {
-                customProgressBar.setContentDescription(
-                        getContext().getString(seekbarContentDescriptionRes));
+                customProgressSlider.setContentDescription(
+                        activity.getString(seekbarContentDescriptionRes));
             }
-            customProgressBar.incrementProgressBy(CUSTOM_PROGRESS_INTERVAL);
-            customProgressBar.setProgress(1);
             View customValueView = accessibilityKeyDialog.findViewById(
                     R.id.input_setting_keys_custom_value_option);
             customValueView.setOnClickListener(l -> customRadioButton.performClick());
@@ -140,30 +145,33 @@ public abstract class KeyboardAccessibilityKeysDialogFragment extends DialogFrag
                 }
                 customValueTextView.setVisibility(isChecked ? View.VISIBLE : View.GONE);
                 customValueTextView.setText(
-                        progressToThresholdInSecond(customProgressBar.getProgress()));
-                customProgressBar.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+                        progressToThresholdInSecond(customProgressSlider.getValue()));
+                seekbarView.setVisibility(isChecked ? View.VISIBLE : View.GONE);
                 buttonView.setChecked(isChecked);
             });
             cannedValueRadioGroup.setOnCheckedChangeListener(
                     (group, checkedId) -> customRadioButton.setChecked(false));
-            customProgressBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    String threshold = progressToThresholdInSecond(progress);
-                    customValueTextView.setText(threshold);
-                    customProgressBar.setContentDescription(threshold);
-                }
-
-                @Override
-                public void onStartTrackingTouch(SeekBar seekBar) {
-                }
-
-                @Override
-                public void onStopTrackingTouch(SeekBar seekBar) {
-                }
+            customProgressSlider.clearOnChangeListeners();
+            customProgressSlider.addOnChangeListener((slider, v, b) -> {
+                String thresholdInSecond = progressToThresholdInSecond(v);
+                customValueTextView.setText(thresholdInSecond);
+                customProgressSlider.setContentDescription(thresholdInSecond);
             });
-            initStateBasedOnThreshold(cannedValueRadioGroup, customRadioButton, customValueTextView,
-                    customProgressBar);
+            if (cannedValueRadioGroup.getCheckedRadioButtonId() == -1
+                    && !customRadioButton.isChecked()) {
+                //if canned radio group and custom are not select, initial check state from input
+                // setting
+                initStateBasedOnThreshold(cannedValueRadioGroup, customRadioButton,
+                        customValueTextView,
+                        customProgressSlider, seekbarView);
+            } else if (customRadioButton.isChecked()) {
+                cannedValueRadioGroup.clearCheck();
+                customRadioButton.setChecked(true);
+                customValueTextView.setVisibility(View.VISIBLE);
+                customValueTextView.setText(
+                        progressToThresholdInSecond(customProgressSlider.getValue()));
+                seekbarView.setVisibility(View.VISIBLE);
+            }
         });
 
         final Window window = accessibilityKeyDialog.getWindow();
@@ -172,27 +180,27 @@ public abstract class KeyboardAccessibilityKeysDialogFragment extends DialogFrag
         return accessibilityKeyDialog;
     }
 
-    private String progressToThresholdInSecond(int progress) {
-        return (double) progress * CUSTOM_PROGRESS_INTERVAL
-                / MILLISECOND_IN_SECONDS + " " + TimeUnit.SECONDS.name().toLowerCase(
-                Locale.getDefault());
+    private String progressToThresholdInSecond(float progress) {
+        return getString(R.string.input_setting_keys_dialog_option_custom, progress);
     }
 
     private void initStateBasedOnThreshold(RadioGroup cannedValueRadioGroup,
             RadioButton customRadioButton, TextView customValueTextView,
-            SeekBar customProgressBar) {
+            Slider customProgressSlider, View seekbarView) {
         int inputSettingKeysThreshold = getInputSettingKeysValue();
         switch (inputSettingKeysThreshold) {
             case 600 -> cannedValueRadioGroup.check(R.id.input_setting_keys_value_600);
             case 400 -> cannedValueRadioGroup.check(R.id.input_setting_keys_value_400);
             case 0, 200 -> cannedValueRadioGroup.check(R.id.input_setting_keys_value_200);
             default -> {
+                float thresholdInSecond =
+                        (float) inputSettingKeysThreshold / MILLISECOND_IN_SECONDS;
                 customValueTextView.setText(
-                        String.valueOf(
-                                (double) inputSettingKeysThreshold / MILLISECOND_IN_SECONDS));
-                customProgressBar.setProgress(inputSettingKeysThreshold / CUSTOM_PROGRESS_INTERVAL);
+                        progressToThresholdInSecond(thresholdInSecond));
+                customProgressSlider.setValue(thresholdInSecond);
                 customRadioButton.setChecked(true);
             }
         }
+        seekbarView.setVisibility(customRadioButton.isChecked() ? View.VISIBLE : View.GONE);
     }
 }

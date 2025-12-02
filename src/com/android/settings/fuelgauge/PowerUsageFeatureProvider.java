@@ -64,6 +64,12 @@ public interface PowerUsageFeatureProvider {
     /** Returns an allowlist of app names combined into the system-apps item */
     List<String> getSystemAppsAllowlist();
 
+    /** Returns the data retention days in the database */
+    int getDataRetentionDays();
+
+    /** Returns the max age of battery usage stats set for getBatteryUsageStats() method */
+    long getBatteryUsageStatsMaxAgeMs(boolean isFromPeriodJob);
+
     /** Check whether location setting is enabled */
     boolean isLocationSettingEnabled(String[] packages);
 

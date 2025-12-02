@@ -30,15 +30,21 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.robolectric.Shadows.shadowOf;
 
+import android.app.Application;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.face.Face;
 import android.hardware.face.FaceManager;
 import android.os.UserManager;
+import android.platform.test.annotations.DisableFlags;
+import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.lifecycle.LifecycleOwner;
 import androidx.preference.Preference;
+import androidx.test.core.app.ApplicationProvider;
 
 import com.android.internal.widget.LockPatternUtils;
 import com.android.settings.R;
@@ -50,6 +56,7 @@ import com.android.settingslib.core.lifecycle.Lifecycle;
 
 import org.junit.Before;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -57,7 +64,6 @@ import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
-import org.robolectric.shadows.ShadowApplication;
 
 import java.util.Collections;
 
@@ -67,6 +73,8 @@ public class FaceStatusPreferenceControllerTest {
 
     private static final String TEST_PREF_KEY = "baz";
 
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
     @Mock
     private LockPatternUtils mLockPatternUtils;
     @Mock
@@ -91,8 +99,10 @@ public class FaceStatusPreferenceControllerTest {
         mLifecycle = new Lifecycle(mLifecycleOwner);
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FACE)).thenReturn(true);
-        ShadowApplication.getInstance().setSystemService(Context.FACE_SERVICE, mFaceManager);
-        ShadowApplication.getInstance().setSystemService(Context.USER_SERVICE, mUm);
+        shadowOf((Application) ApplicationProvider.getApplicationContext())
+                .setSystemService(Context.FACE_SERVICE, mFaceManager);
+        shadowOf((Application) ApplicationProvider.getApplicationContext())
+                .setSystemService(Context.USER_SERVICE, mUm);
         mPreference = new Preference(mContext);
         mFeatureFactory = FakeFeatureFactory.setupForTest();
         when(mFeatureFactory.securityFeatureProvider.getLockPatternUtils(mContext))
@@ -125,13 +135,26 @@ public class FaceStatusPreferenceControllerTest {
     }
 
     @Test
-    public void updateState_noFace_shouldShowDefaultSummary() {
+    @DisableFlags(com.android.settings.flags.Flags.FLAG_BIOMETRICS_ONBOARDING_EDUCATION)
+    public void updateState_noFace_flagOff_shouldShowDefaultSummary() {
         when(mFaceManager.isHardwareDetected()).thenReturn(true);
 
         mController.updateState(mPreference);
 
         assertThat(mPreference.getSummary()).isEqualTo(
                 mContext.getString(R.string.security_settings_face_preference_summary_none));
+        assertThat(mPreference.isVisible()).isTrue();
+    }
+
+    @Test
+    @EnableFlags(com.android.settings.flags.Flags.FLAG_BIOMETRICS_ONBOARDING_EDUCATION)
+    public void updateState_noFace_flagOn_shouldShowDefaultSummary() {
+        when(mFaceManager.isHardwareDetected()).thenReturn(true);
+
+        mController.updateState(mPreference);
+
+        assertThat(mPreference.getSummary()).isEqualTo(
+                mContext.getString(R.string.security_settings_face_preference_summary_none_new));
         assertThat(mPreference.isVisible()).isTrue();
     }
 
@@ -165,6 +188,7 @@ public class FaceStatusPreferenceControllerTest {
         reset(admin);
 
         mController.updateStateInternal(null /* enforcedAdmin */);
-        verify(restrictedPreference, never()).setDisabledByAdmin(any());
+        verify(restrictedPreference, never())
+                .setDisabledByAdmin((RestrictedLockUtils.EnforcedAdmin) any());
     }
 }

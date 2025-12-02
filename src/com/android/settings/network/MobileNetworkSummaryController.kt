@@ -17,7 +17,6 @@
 package com.android.settings.network
 
 import android.content.Context
-import android.provider.Settings
 import androidx.lifecycle.LifecycleOwner
 import androidx.preference.Preference
 import androidx.preference.PreferenceScreen
@@ -27,9 +26,9 @@ import com.android.settings.dashboard.DashboardFragment
 import com.android.settings.network.telephony.SimRepository
 import com.android.settings.overlay.FeatureFactory.Companion.featureFactory
 import com.android.settings.spa.network.startAddSimFlow
+import com.android.settings.spa.network.startSatelliteWarningDialogFlow
 import com.android.settingslib.RestrictedPreference
 import com.android.settingslib.spa.framework.util.collectLatestWithLifecycle
-import com.android.settingslib.spaprivileged.settingsprovider.settingsGlobalBooleanFlow
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -49,13 +48,13 @@ constructor(
     preferenceKey: String,
     private val repository: MobileNetworkSummaryRepository =
         MobileNetworkSummaryRepository(context),
-    private val airplaneModeOnFlow: Flow<Boolean> =
-        context.settingsGlobalBooleanFlow(Settings.Global.AIRPLANE_MODE_ON),
+    private val satelliteIsStartedFlow: Flow<Boolean> =
+        SatelliteRepository(context).getIsSessionStartedFlow(),
 ) : BasePreferenceController(context, preferenceKey) {
     private val metricsFeatureProvider = featureFactory.metricsFeatureProvider
     private var preference: RestrictedPreference? = null
 
-    private var isAirplaneModeOn = false
+    private var isSatelliteOn = false
 
     override fun getAvailabilityStatus() =
         if (SimRepository(mContext).showMobileNetworkPageEntrance()) AVAILABLE
@@ -70,10 +69,7 @@ constructor(
         repository
             .subscriptionsStateFlow()
             .collectLatestWithLifecycle(viewLifecycleOwner, action = ::update)
-        airplaneModeOnFlow.collectLatestWithLifecycle(viewLifecycleOwner) {
-            isAirplaneModeOn = it
-            updateEnabled()
-        }
+        satelliteIsStartedFlow.collectLatestWithLifecycle(viewLifecycleOwner) { isSatelliteOn = it }
     }
 
     private fun update(state: MobileNetworkSummaryRepository.SubscriptionsState) {
@@ -87,7 +83,8 @@ constructor(
                 preference.onPreferenceClickListener =
                     Preference.OnPreferenceClickListener {
                         logPreferenceClick()
-                        startAddSimFlow(context)
+                        if (isSatelliteOn) startSatelliteWarningDialogFlow(context)
+                        else startAddSimFlow(context)
                         true
                     }
             }
@@ -108,8 +105,7 @@ constructor(
         val preference = preference ?: return
         if (preference.isDisabledByAdmin) return
         preference.isEnabled =
-            (preference.onPreferenceClickListener != null || preference.fragment != null) &&
-                !isAirplaneModeOn
+            (preference.onPreferenceClickListener != null || preference.fragment != null)
     }
 
     private fun logPreferenceClick() {

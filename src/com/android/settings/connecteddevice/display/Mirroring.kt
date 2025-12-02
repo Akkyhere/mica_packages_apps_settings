@@ -18,31 +18,23 @@ package com.android.settings.connecteddevice.display
 
 import android.content.Context
 import android.provider.Settings
+import com.android.settingslib.RestrictedSwitchPreference
 
-import androidx.preference.SwitchPreferenceCompat
+const val MIRROR_SETTING = Settings.Secure.MIRROR_BUILT_IN_DISPLAY
 
-import com.android.settings.R
-
-/**
- * A switch preference which is backed by the MIRROR_BUILT_IN_DISPLAY global setting.
- */
-class MirrorPreference(context: Context): SwitchPreferenceCompat(context) {
-    init {
-        setTitle(R.string.external_display_mirroring_title)
-
-        isPersistent = false
-    }
-
-    override fun onAttached() {
-        super.onAttached()
-        setChecked(0 != Settings.Secure.getInt(
-                context.contentResolver, Settings.Secure.MIRROR_BUILT_IN_DISPLAY, 0))
-    }
+/** A switch preference which is backed by the MIRROR_BUILT_IN_DISPLAY global setting. */
+class MirrorPreference(context: Context, val contentModeEnabled: Boolean) :
+    RestrictedSwitchPreference(context) {
 
     override fun onClick() {
         super.onClick()
-        Settings.Secure.putInt(
-                context.contentResolver, Settings.Secure.MIRROR_BUILT_IN_DISPLAY,
-                if (isChecked()) 1 else 0)
+
+        if (contentModeEnabled) {
+            Settings.Secure.putInt(
+                context.contentResolver,
+                MIRROR_SETTING,
+                if (isChecked()) 1 else 0,
+            )
+        }
     }
 }

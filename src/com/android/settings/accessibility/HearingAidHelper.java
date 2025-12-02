@@ -21,6 +21,8 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 
+import androidx.annotation.Nullable;
+
 import com.android.settingslib.bluetooth.CachedBluetoothDevice;
 import com.android.settingslib.bluetooth.CachedBluetoothDeviceManager;
 import com.android.settingslib.bluetooth.HapClientProfile;
@@ -79,9 +81,10 @@ public class HearingAidHelper {
      *
      * @return a {@link CachedBluetoothDevice} that is hearing aids device
      */
+    @Nullable
     public CachedBluetoothDevice getConnectedHearingAidDevice() {
         final List<BluetoothDevice> deviceList = getConnectedHearingAidDeviceList();
-        return deviceList.isEmpty() ? null : mCachedDeviceManager.findDevice(deviceList.get(0));
+        return deviceList.isEmpty() ? null : mCachedDeviceManager.findDevice(deviceList.getFirst());
     }
 
     /**
@@ -92,6 +95,22 @@ public class HearingAidHelper {
         final List<Integer> supportedList = mBluetoothAdapter.getSupportedProfiles();
         return supportedList.contains(BluetoothProfile.HEARING_AID)
                 || supportedList.contains(BluetoothProfile.HAP_CLIENT);
+    }
+
+    /**
+     * Checks if {@link BluetoothProfile#HEARING_AID} supported.
+     */
+    public boolean isAshaProfileSupported() {
+        final List<Integer> supportedList = mBluetoothAdapter.getSupportedProfiles();
+        return supportedList.contains(BluetoothProfile.HEARING_AID);
+    }
+
+    /**
+     * Checks if {@link BluetoothProfile#HAP_CLIENT} supported.
+     */
+    public boolean isHapClientProfileSupported() {
+        final List<Integer> supportedList = mBluetoothAdapter.getSupportedProfiles();
+        return supportedList.contains(BluetoothProfile.HAP_CLIENT);
     }
 
     /**

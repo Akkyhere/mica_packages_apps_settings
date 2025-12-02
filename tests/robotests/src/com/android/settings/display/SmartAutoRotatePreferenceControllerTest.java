@@ -18,6 +18,8 @@ package com.android.settings.display;
 
 import static android.provider.Settings.Secure.CAMERA_AUTOROTATE;
 
+import static com.android.settings.testutils.DeviceStateAutoRotateSettingTestUtils.setDeviceStateRotationLockEnabled;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -33,6 +35,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
 import android.content.res.Resources;
+import android.hardware.devicestate.DeviceStateManager;
 import android.os.UserHandle;
 import android.provider.Settings;
 
@@ -40,7 +43,6 @@ import com.android.settings.R;
 import com.android.settings.core.BasePreferenceController;
 import com.android.settings.testutils.FakeFeatureFactory;
 import com.android.settings.testutils.ResolveInfoBuilder;
-import com.android.settings.testutils.shadow.ShadowDeviceStateRotationLockSettingsManager;
 import com.android.settings.testutils.shadow.ShadowSensorPrivacyManager;
 import com.android.settings.testutils.shadow.ShadowSystemSettings;
 
@@ -57,14 +59,15 @@ import org.robolectric.annotation.Config;
 @RunWith(RobolectricTestRunner.class)
 @Config(shadows = {
         ShadowSystemSettings.class,
-        ShadowSensorPrivacyManager.class,
-        ShadowDeviceStateRotationLockSettingsManager.class
+        ShadowSensorPrivacyManager.class
 })
 public class SmartAutoRotatePreferenceControllerTest {
 
     private static final String PACKAGE_NAME = "package_name";
     @Mock
     private PackageManager mPackageManager;
+    @Mock
+    private DeviceStateManager mDeviceStateManager;
     @Mock
     private Resources mResources;
     private Context mContext;
@@ -81,6 +84,7 @@ public class SmartAutoRotatePreferenceControllerTest {
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
         when(mContext.getResources()).thenReturn(mResources);
         when(mContext.getContentResolver()).thenReturn(mContentResolver);
+        doReturn(mDeviceStateManager).when(mContext).getSystemService(DeviceStateManager.class);
 
         when(mResources.getBoolean(R.bool.config_auto_rotate_face_detection_available)).thenReturn(
                 true);
@@ -104,7 +108,7 @@ public class SmartAutoRotatePreferenceControllerTest {
                 new SmartAutoRotatePreferenceController(mContext, "smart_auto_rotate"));
         when(mController.isCameraLocked()).thenReturn(false);
         when(mController.isPowerSaveMode()).thenReturn(false);
-        ShadowDeviceStateRotationLockSettingsManager.setDeviceStateRotationLockEnabled(false);
+        setDeviceStateRotationLockEnabled(/* enable= */ false, mResources, mDeviceStateManager);
     }
 
     @Test
@@ -213,7 +217,7 @@ public class SmartAutoRotatePreferenceControllerTest {
     @Test
     public void getAvailabilityStatus_deviceStateRotationEnabled_returnsUnsupported() {
         enableAutoRotationPreference();
-        ShadowDeviceStateRotationLockSettingsManager.setDeviceStateRotationLockEnabled(true);
+        setDeviceStateRotationLockEnabled(/* enable= */ true, mResources, mDeviceStateManager);
 
         assertThat(mController.getAvailabilityStatus()).isEqualTo(
                 BasePreferenceController.UNSUPPORTED_ON_DEVICE);

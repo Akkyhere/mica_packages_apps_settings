@@ -39,7 +39,7 @@ import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.preference.Preference;
-import androidx.preference.SwitchPreference;
+import androidx.preference.SwitchPreferenceCompat;
 
 import com.android.settings.R;
 import com.android.settings.core.PreferenceControllerMixin;
@@ -68,8 +68,7 @@ import java.util.zip.ZipFile;
 public class Enable16kPagesPreferenceController extends DeveloperOptionsPreferenceController
         implements Preference.OnPreferenceChangeListener,
                 PreferenceControllerMixin,
-                Enable16kbPagesDialogHost,
-                EnableExt4DialogHost {
+                Enable16kbPagesDialogHost {
 
     private static final String TAG = "Enable16kPages";
     private static final String REBOOT_REASON = "toggle16k";
@@ -121,10 +120,6 @@ public class Enable16kPagesPreferenceController extends DeveloperOptionsPreferen
             return false;
         }
 
-        if (!Enable16kUtils.isDataExt4()) {
-            EnableExt4WarningDialog.show(mFragment, this);
-            return false;
-        }
         Enable16kPagesWarningDialog.show(mFragment, this, mEnable16k);
         return true;
     }
@@ -139,7 +134,7 @@ public class Enable16kPagesPreferenceController extends DeveloperOptionsPreferen
                         Settings.Global.ENABLE_16K_PAGES,
                         defaultOptionValue /* default */);
 
-        ((SwitchPreference) mPreference).setChecked(optionValue == ENABLE_16K_PAGE_SIZE);
+        ((SwitchPreferenceCompat) mPreference).setChecked(optionValue == ENABLE_16K_PAGE_SIZE);
     }
 
     @Override
@@ -150,7 +145,7 @@ public class Enable16kPagesPreferenceController extends DeveloperOptionsPreferen
                 mContext.getContentResolver(),
                 Settings.Global.ENABLE_16K_PAGES,
                 ENABLE_4K_PAGE_SIZE);
-        ((SwitchPreference) mPreference).setChecked(false);
+        ((SwitchPreferenceCompat) mPreference).setChecked(false);
     }
 
     @Override
@@ -186,7 +181,13 @@ public class Enable16kPagesPreferenceController extends DeveloperOptionsPreferen
                     public void onFailure(@NonNull Throwable t) {
                         hideProgressDialog();
                         Log.e(TAG, "Failed to call applyPayload of UpdateEngineStable!", t);
-                        displayToast(mContext.getString(R.string.toast_16k_update_failed_text));
+                        // installUpdate will always throw localized messages.
+                        String message = t.getMessage();
+                        if (message != null) {
+                            displayToast(message);
+                        } else {
+                            displayToast(mContext.getString(R.string.toast_16k_update_failed_text));
+                        }
                     }
                 },
                 ContextCompat.getMainExecutor(mContext));
@@ -208,10 +209,8 @@ public class Enable16kPagesPreferenceController extends DeveloperOptionsPreferen
         int status = data.getInt(SystemUpdateManager.KEY_STATUS);
         if (status != SystemUpdateManager.STATUS_UNKNOWN
                 && status != SystemUpdateManager.STATUS_IDLE) {
-            throw new RuntimeException(
-                    "System has pending update! Please restart the device to complete applying"
-                            + " pending update. If you are seeing this after using 16KB developer"
-                            + " options, please check configuration and OTA packages!");
+            Log.e(TAG, "SystemUpdateManager is not available. Status :" + status);
+            throw new RuntimeException(mContext.getString(R.string.error_pending_updates));
         }
 
         // Publish system update info
@@ -223,7 +222,11 @@ public class Enable16kPagesPreferenceController extends DeveloperOptionsPreferen
             Log.i(TAG, "Update file path is " + updateFile.getAbsolutePath());
             applyUpdateFile(updateFile);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            Log.e(TAG, "Error occurred while applying OTA ", e);
+            throw new RuntimeException(mContext.getString(R.string.error_ota_failed));
+        } catch (Exception e) {
+            Log.e(TAG, "Unknown error occurred while applying OTA ", e);
+            throw new RuntimeException(mContext.getString(R.string.toast_16k_update_failed_text));
         }
     }
 
@@ -320,27 +323,6 @@ public class Enable16kPagesPreferenceController extends DeveloperOptionsPreferen
         Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
     }
 
-    @Override
-    public void onExt4DialogConfirmed() {
-        // user has confirmed to wipe the device
-        ListenableFuture future = mExecutorService.submit(() -> wipeData());
-        Futures.addCallback(
-                future,
-                new FutureCallback<>() {
-                    @Override
-                    public void onSuccess(@NonNull Object result) {
-                        Log.i(TAG, "Wiping /data  with recovery system.");
-                    }
-
-                    @Override
-                    public void onFailure(@NonNull Throwable t) {
-                        Log.e(TAG, "Failed to change the /data partition to ext4");
-                        displayToast(mContext.getString(R.string.format_ext4_failure_toast));
-                    }
-                },
-                ContextCompat.getMainExecutor(mContext));
-    }
-
     private void wipeData() {
         RecoverySystem recoveryService = mContext.getSystemService(RecoverySystem.class);
         try {
@@ -348,11 +330,6 @@ public class Enable16kPagesPreferenceController extends DeveloperOptionsPreferen
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    @Override
-    public void onExt4DialogDismissed() {
-        // Do nothing
     }
 
     private class OtaUpdateCallback extends UpdateEngineStableCallback {
@@ -389,9 +366,14 @@ public class Enable16kPagesPreferenceController extends DeveloperOptionsPreferen
                         createUpdateInfo(SystemUpdateManager.STATUS_WAITING_REBOOT);
                 manager.updateSystemUpdateInfo(info);
 
-                // Restart device to complete update
-                PowerManager pm = mContext.getSystemService(PowerManager.class);
-                pm.reboot(REBOOT_REASON);
+                if (!Enable16kUtils.isDataExt4()) {
+                    wipeData();
+                } else {
+                    // Restart device to complete update
+                    PowerManager pm = mContext.getSystemService(PowerManager.class);
+                    pm.reboot(REBOOT_REASON);
+                }
+
             } else {
                 Log.e(TAG, "applyPayload failed, error code: " + errorCode);
                 displayToast(mContext.getString(R.string.toast_16k_update_failed_text));

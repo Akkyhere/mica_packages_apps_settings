@@ -22,6 +22,7 @@ import static com.android.settingslib.drawer.SwitchesProvider.EXTRA_SWITCH_SET_C
 import static com.android.settingslib.drawer.TileUtils.META_DATA_KEY_ORDER;
 import static com.android.settingslib.drawer.TileUtils.META_DATA_KEY_PROFILE;
 import static com.android.settingslib.drawer.TileUtils.META_DATA_PREFERENCE_ICON;
+import static com.android.settingslib.drawer.TileUtils.META_DATA_PREFERENCE_ICON_COLOR_SCHEME;
 import static com.android.settingslib.drawer.TileUtils.META_DATA_PREFERENCE_ICON_URI;
 import static com.android.settingslib.drawer.TileUtils.META_DATA_PREFERENCE_KEYHINT;
 import static com.android.settingslib.drawer.TileUtils.META_DATA_PREFERENCE_SUMMARY;
@@ -31,6 +32,7 @@ import static com.android.settingslib.drawer.TileUtils.PROFILE_ALL;
 import static com.android.settingslib.drawer.TileUtils.PROFILE_PRIMARY;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -55,6 +57,7 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
 import android.os.Bundle;
+import android.os.Looper;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Pair;
@@ -69,6 +72,7 @@ import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
 import com.android.settings.R;
 import com.android.settings.SettingsActivity;
 import com.android.settings.Utils;
+import com.android.settings.dashboard.DashboardFeatureProviderImpl.ColorScheme;
 import com.android.settings.homepage.TopLevelHighlightMixin;
 import com.android.settings.homepage.TopLevelSettings;
 import com.android.settings.search.SearchFeatureProviderImpl;
@@ -98,13 +102,14 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.Shadows;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowActivity;
+import org.robolectric.shadows.ShadowIcon;
 import org.robolectric.util.ReflectionHelpers;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(shadows = ShadowUserManager.class)
+@Config(shadows = {ShadowUserManager.class, ShadowIcon.class})
 public class DashboardFeatureProviderImplTest {
     @Rule
     public final MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -159,6 +164,7 @@ public class DashboardFeatureProviderImplTest {
         mFeatureFactory = FakeFeatureFactory.setupForTest();
         mImpl = new DashboardFeatureProviderImpl(mContext);
         mFragment = new TestFragment();
+        ShadowIcon.overrideExecutor(directExecutor());
     }
 
     @Test
@@ -174,8 +180,10 @@ public class DashboardFeatureProviderImplTest {
         doReturn(Icon.createWithBitmap(Bitmap.createBitmap(1, 1, Bitmap.Config.RGB_565)))
                 .when(tile).getIcon(any(Context.class));
         mActivityInfo.metaData.putString(SettingsActivity.META_DATA_KEY_FRAGMENT_CLASS, "HI");
+
         mImpl.bindPreferenceToTileAndGetObservers(mActivity, mFragment, mForceRoundedIcon,
                 preference, tile, "123", Preference.DEFAULT_ORDER);
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
 
         assertThat(preference.getTitle()).isEqualTo(mContext.getText(R.string.settings_label));
         assertThat(preference.getSummary())
@@ -194,9 +202,11 @@ public class DashboardFeatureProviderImplTest {
         mSwitchMetaData.putInt(META_DATA_KEY_ORDER, 10);
         doReturn(Icon.createWithBitmap(Bitmap.createBitmap(1, 1, Bitmap.Config.RGB_565)))
                 .when(tile).getIcon(any(Context.class));
+
         final List<DynamicDataObserver> observers = mImpl.bindPreferenceToTileAndGetObservers(
                 mActivity, mFragment, mForceRoundedIcon, preference, tile, null /* key*/,
                 Preference.DEFAULT_ORDER);
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
 
         assertThat(preference.getTitle()).isEqualTo(mContext.getText(R.string.settings_label));
         assertThat(preference.getSummary())
@@ -454,6 +464,7 @@ public class DashboardFeatureProviderImplTest {
         mActivityInfo.metaData.putInt(META_DATA_PREFERENCE_ICON, R.drawable.ic_add_40dp);
 
         mImpl.bindIcon(preference, tile, false /* forceRoundedIcon */);
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
 
         final Bitmap preferenceBmp = Utils.createIconWithDrawable(preference.getIcon()).getBitmap();
         final Drawable staticIcon = Icon.createWithResource(mActivityInfo.packageName,
@@ -473,6 +484,7 @@ public class DashboardFeatureProviderImplTest {
                 "content://com.android.settings/tile_icon");
 
         mImpl.bindIcon(preference, tile, false /* forceRoundedIcon */);
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
 
         assertThat(preference.getIcon()).isNotNull();
     }
@@ -489,6 +501,7 @@ public class DashboardFeatureProviderImplTest {
                 "content://com.android.settings/tile_icon");
 
         mImpl.bindIcon(preference, tile, false /* forceRoundedIcon */);
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
 
         final Bitmap preferenceBmp = Utils.createIconWithDrawable(preference.getIcon()).getBitmap();
         final Drawable staticIcon = Icon.createWithResource(mActivityInfo.packageName,
@@ -513,6 +526,7 @@ public class DashboardFeatureProviderImplTest {
         mActivityInfo.metaData.putString(META_DATA_PREFERENCE_KEYHINT, "key");
 
         mImpl.bindIcon(preference, tile, false /* forceRoundedIcon */);
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
 
         assertThat(preference.getIcon()).isNull();
     }
@@ -820,6 +834,135 @@ public class DashboardFeatureProviderImplTest {
                 .startActivityAsUser(any(Intent.class), argument.capture());
         assertThat(argument.getValue().getIdentifier()).isEqualTo(0);
         verify(mActivity, never()).getSupportFragmentManager();
+    }
+
+    @Test
+    public void getSchemedColors_schemeNotSpecified_returnGrey() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme).isEqualTo(ColorScheme.grey);
+    }
+
+    @Test
+    public void getSchemedColors_undefinedScheme_returnGrey() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "abc");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme).isEqualTo(ColorScheme.grey);
+    }
+
+    @Test
+    public void getSchemedColors_blueVariantScheme_returnCorrectColors() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "blue_variant");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme.foregroundColor).isEqualTo(R.color.homepage_blue_variant_fg);
+        assertThat(scheme.backgroundColor).isEqualTo(R.color.homepage_blue_variant_bg);
+    }
+
+    @Test
+    public void getSchemedColors_blueScheme_returnCorrectColors() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "blue");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme.foregroundColor).isEqualTo(R.color.homepage_blue_fg);
+        assertThat(scheme.backgroundColor).isEqualTo(R.color.homepage_blue_bg);
+    }
+
+    @Test
+    public void getSchemedColors_pinkScheme_returnCorrectColors() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "pink");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme.foregroundColor).isEqualTo(R.color.homepage_pink_fg);
+        assertThat(scheme.backgroundColor).isEqualTo(R.color.homepage_pink_bg);
+    }
+
+    @Test
+    public void getSchemedColors_orangeScheme_returnCorrectColors() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "orange");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme.foregroundColor).isEqualTo(R.color.homepage_orange_fg);
+        assertThat(scheme.backgroundColor).isEqualTo(R.color.homepage_orange_bg);
+    }
+
+    @Test
+    public void getSchemedColors_yellowScheme_returnCorrectColors() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "yellow");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme.foregroundColor).isEqualTo(R.color.homepage_yellow_fg);
+        assertThat(scheme.backgroundColor).isEqualTo(R.color.homepage_yellow_bg);
+    }
+
+    @Test
+    public void getSchemedColors_greenScheme_returnCorrectColors() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "green");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme.foregroundColor).isEqualTo(R.color.homepage_green_fg);
+        assertThat(scheme.backgroundColor).isEqualTo(R.color.homepage_green_bg);
+    }
+
+    @Test
+    public void getSchemedColors_greyScheme_returnCorrectColors() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "grey");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme.foregroundColor).isEqualTo(R.color.homepage_grey_fg);
+        assertThat(scheme.backgroundColor).isEqualTo(R.color.homepage_grey_bg);
+    }
+
+    @Test
+    public void getSchemedColors_cyanScheme_returnCorrectColors() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "cyan");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme.foregroundColor).isEqualTo(R.color.homepage_cyan_fg);
+        assertThat(scheme.backgroundColor).isEqualTo(R.color.homepage_cyan_bg);
+    }
+
+    @Test
+    public void getSchemedColors_redScheme_returnCorrectColors() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "red");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme.foregroundColor).isEqualTo(R.color.homepage_red_fg);
+        assertThat(scheme.backgroundColor).isEqualTo(R.color.homepage_red_bg);
+    }
+
+    @Test
+    public void getSchemedColors_purpleScheme_returnCorrectColors() {
+        Tile tile = new ActivityTile(mActivityInfo, CategoryKey.CATEGORY_HOMEPAGE);
+        mActivityInfo.metaData.putString(META_DATA_PREFERENCE_ICON_COLOR_SCHEME, "purple");
+
+        ColorScheme scheme = mImpl.getColorScheme(tile);
+
+        assertThat(scheme.foregroundColor).isEqualTo(R.color.homepage_purple_fg);
+        assertThat(scheme.backgroundColor).isEqualTo(R.color.homepage_purple_bg);
     }
 
     private static class TestFragment extends DashboardFragment {

@@ -27,15 +27,14 @@ import android.hardware.SensorPrivacyManager.Sensors.CAMERA
 import android.os.PowerManager
 import android.os.UserManager
 import android.provider.Settings
-import com.android.settings.PreferenceActionMetricsProvider
-import com.android.settings.PreferenceRestrictionMixin
 import com.android.settings.R
 import com.android.settings.contract.KEY_SCREEN_ATTENTION
+import com.android.settings.metrics.PreferenceActionMetricsProvider
+import com.android.settings.restriction.PreferenceRestrictionMixin
 import com.android.settingslib.RestrictedSwitchPreference
 import com.android.settingslib.datastore.KeyValueStore
-import com.android.settingslib.datastore.KeyedObservableDelegate
+import com.android.settingslib.datastore.KeyValueStoreDelegate
 import com.android.settingslib.datastore.SettingsSecureStore
-import com.android.settingslib.datastore.SettingsStore
 import com.android.settingslib.metadata.BooleanValuePreference
 import com.android.settingslib.metadata.PreferenceAvailabilityProvider
 import com.android.settingslib.metadata.PreferenceLifecycleContext
@@ -67,12 +66,13 @@ class AdaptiveSleepPreference :
     override val summary: Int
         get() = R.string.adaptive_sleep_description
 
+    override val indexable
+        get() = false
+
     override val preferenceActionMetrics: Int
         get() = ACTION_SCREEN_ATTENTION_CHANGED
 
     override fun tags(context: Context) = arrayOf(KEY_SCREEN_ATTENTION)
-
-    override fun isIndexable(context: Context) = false
 
     override fun isEnabled(context: Context) =
         super<PreferenceRestrictionMixin>.isEnabled(context) && context.canBeEnabled()
@@ -106,16 +106,14 @@ class AdaptiveSleepPreference :
     @Suppress("UNCHECKED_CAST")
     private class Storage(
         private val context: Context,
-        private val settingsStore: SettingsStore = SettingsSecureStore.get(context),
-    ) : KeyedObservableDelegate<String>(settingsStore), KeyValueStore {
+        private val settingsStore: KeyValueStore = SettingsSecureStore.get(context),
+    ) : KeyValueStoreDelegate {
 
-        override fun contains(key: String) = settingsStore.contains(key)
+        override val keyValueStoreDelegate
+            get() = settingsStore
 
         override fun <T : Any> getValue(key: String, valueType: Class<T>) =
             (context.canBeEnabled() && settingsStore.getBoolean(key) == true) as T
-
-        override fun <T : Any> setValue(key: String, valueType: Class<T>, value: T?) =
-            settingsStore.setBoolean(key, value as Boolean?)
     }
 
     override fun onStart(context: PreferenceLifecycleContext) {

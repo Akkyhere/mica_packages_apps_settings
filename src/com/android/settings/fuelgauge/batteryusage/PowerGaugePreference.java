@@ -28,7 +28,9 @@ import androidx.preference.PreferenceViewHolder;
 
 import com.android.settings.R;
 import com.android.settings.Utils;
-import com.android.settingslib.widget.AppPreference;
+import com.android.settings.fuelgauge.WarningFramePreference;
+import com.android.settingslib.widget.SettingsThemeHelper;
+import com.android.settingslib.widget.theme.R.style;
 
 /**
  * Custom preference for displaying battery usage info as a bar and an icon on the left for the
@@ -37,7 +39,7 @@ import com.android.settingslib.widget.AppPreference;
  * <p>The battery usage info could be usage percentage or usage time. The preference won't show any
  * icon if it is null.
  */
-public class PowerGaugePreference extends AppPreference {
+public class PowerGaugePreference extends WarningFramePreference {
 
     // Please see go/battery-usage-app-list-alpha
     private static final float SELECTABLE_ALPHA = 1f;
@@ -51,7 +53,6 @@ public class PowerGaugePreference extends AppPreference {
     private CharSequence mContentDescription;
     private CharSequence mProgress;
     private CharSequence mProgressContentDescription;
-    private boolean mShowAnomalyIcon;
 
     public PowerGaugePreference(
             Context context, Drawable icon, CharSequence contentDescription, BatteryEntry info) {
@@ -79,7 +80,6 @@ public class PowerGaugePreference extends AppPreference {
         setWidgetLayoutResource(R.layout.preference_widget_summary);
         mInfo = info;
         mContentDescription = contentDescription;
-        mShowAnomalyIcon = false;
         mTitleColorNormal =
                 Utils.getColorAttrDefaultColor(context, android.R.attr.textColorPrimary);
     }
@@ -108,17 +108,6 @@ public class PowerGaugePreference extends AppPreference {
         return mProgress.toString();
     }
 
-    /** Sets whether to show anomaly icon */
-    public void shouldShowAnomalyIcon(boolean showAnomalyIcon) {
-        mShowAnomalyIcon = showAnomalyIcon;
-        notifyChanged();
-    }
-
-    /** Gets whether to show anomaly icon */
-    public boolean showAnomalyIcon() {
-        return mShowAnomalyIcon;
-    }
-
     public void setBatteryDiffEntry(BatteryDiffEntry entry) {
         mBatteryDiffEntry = entry;
     }
@@ -145,15 +134,13 @@ public class PowerGaugePreference extends AppPreference {
         setViewAlpha(view.itemView, alpha);
 
         final TextView subtitle = (TextView) view.findViewById(R.id.widget_summary);
+        if (SettingsThemeHelper.isExpressiveTheme(getContext())) {
+            subtitle.setTextAppearance(style.TextAppearance_SettingsLib_TitleMedium);
+            subtitle.setTextColor(mTitleColorNormal);
+        }
         subtitle.setText(mProgress);
         if (!TextUtils.isEmpty(mProgressContentDescription)) {
             subtitle.setContentDescription(mProgressContentDescription);
-        }
-        if (mShowAnomalyIcon) {
-            subtitle.setCompoundDrawablesRelativeWithIntrinsicBounds(
-                    R.drawable.ic_warning_24dp, 0, 0, 0);
-        } else {
-            subtitle.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
         }
         if (mContentDescription != null) {
             final TextView titleView = (TextView) view.findViewById(android.R.id.title);
@@ -164,7 +151,6 @@ public class PowerGaugePreference extends AppPreference {
             // Set colors consistently to meet contrast requirements for non-selectable items
             ((TextView) view.findViewById(android.R.id.title)).setTextColor(mTitleColorNormal);
             ((TextView) view.findViewById(android.R.id.summary)).setTextColor(mTitleColorNormal);
-            subtitle.setTextColor(mTitleColorNormal);
         }
     }
 

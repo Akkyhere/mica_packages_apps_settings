@@ -15,19 +15,22 @@
  */
 package com.android.settings.display
 
+import android.app.settings.SettingsEnums
 import android.app.settings.SettingsEnums.ACTION_ADAPTIVE_BRIGHTNESS
 import android.content.Context
 import android.os.UserManager
 import android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE
 import android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
 import android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
-import androidx.preference.Preference
-import androidx.preference.PreferenceScreen
-import com.android.settings.PreferenceActionMetricsProvider
-import com.android.settings.PreferenceRestrictionMixin
+import androidx.fragment.app.Fragment
 import com.android.settings.R
+import com.android.settings.Settings
 import com.android.settings.contract.KEY_ADAPTIVE_BRIGHTNESS
+import com.android.settings.core.PreferenceScreenMixin
 import com.android.settings.flags.Flags
+import com.android.settings.metrics.PreferenceActionMetricsProvider
+import com.android.settings.restriction.PreferenceRestrictionMixin
+import com.android.settings.utils.makeLaunchIntent
 import com.android.settingslib.PrimarySwitchPreferenceBinding
 import com.android.settingslib.datastore.AbstractKeyedDataObservable
 import com.android.settingslib.datastore.HandlerExecutor
@@ -42,14 +45,12 @@ import com.android.settingslib.metadata.ProvidePreferenceScreen
 import com.android.settingslib.metadata.ReadWritePermit
 import com.android.settingslib.metadata.SensitivityLevel
 import com.android.settingslib.metadata.preferenceHierarchy
-import com.android.settingslib.preference.PreferenceScreenBinding
-import com.android.settingslib.preference.PreferenceScreenCreator
+import kotlinx.coroutines.CoroutineScope
 
 @ProvidePreferenceScreen(AutoBrightnessScreen.KEY)
-class AutoBrightnessScreen :
-    PreferenceScreenCreator,
-    PreferenceScreenBinding, // binding for screen page
-    PrimarySwitchPreferenceBinding, // binding for screen entry point widget
+open class AutoBrightnessScreen :
+    PreferenceScreenMixin,
+    PrimarySwitchPreferenceBinding,
     PreferenceActionMetricsProvider,
     PreferenceAvailabilityProvider,
     PreferenceRestrictionMixin,
@@ -60,6 +61,11 @@ class AutoBrightnessScreen :
     override val title: Int
         get() = R.string.auto_brightness_title
 
+    override val highlightMenuKey: Int
+        get() = R.string.menu_key_display
+
+    override fun getMetricsCategory() = SettingsEnums.SETTINGS_AUTO_BRIGHTNESS
+
     override val preferenceActionMetrics: Int
         get() = ACTION_ADAPTIVE_BRIGHTNESS
 
@@ -67,11 +73,12 @@ class AutoBrightnessScreen :
 
     override fun isFlagEnabled(context: Context) = Flags.catalystScreenBrightnessMode()
 
-    override fun fragmentClass() = AutoBrightnessSettings::class.java
+    override fun fragmentClass(): Class<out Fragment>? = AutoBrightnessSettings::class.java
 
     override fun hasCompleteHierarchy() = false
 
-    override fun getPreferenceHierarchy(context: Context) = preferenceHierarchy(context, this) {}
+    override fun getPreferenceHierarchy(context: Context, coroutineScope: CoroutineScope) =
+        preferenceHierarchy(context) {}
 
     override fun storage(context: Context): KeyValueStore =
         AutoBrightnessDataStore(SettingsSystemStore.get(context))
@@ -93,6 +100,9 @@ class AutoBrightnessScreen :
     override val sensitivityLevel
         get() = SensitivityLevel.NO_SENSITIVITY
 
+    override fun getLaunchIntent(context: Context, metadata: PreferenceMetadata?) =
+        makeLaunchIntent(context, Settings.AdaptiveBrightnessActivity::class.java, metadata?.key)
+
     override fun isAvailable(context: Context) =
         context.resources.getBoolean(
             com.android.internal.R.bool.config_automatic_brightness_available
@@ -105,12 +115,6 @@ class AutoBrightnessScreen :
 
     override val useAdminDisabledSummary: Boolean
         get() = true
-
-    override fun bind(preference: Preference, metadata: PreferenceMetadata) =
-        when (preference) {
-            is PreferenceScreen -> super<PreferenceScreenBinding>.bind(preference, metadata)
-            else -> super<PrimarySwitchPreferenceBinding>.bind(preference, metadata)
-        }
 
     /**
      * The datastore for brightness, which is persisted as integer but the external type is boolean.

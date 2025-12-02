@@ -16,7 +16,7 @@
 
 package com.android.settings.connecteddevice.display;
 
-import static com.android.settings.connecteddevice.display.ExternalDisplaySettingsConfiguration.isDisplayAllowed;
+import static com.android.settings.flags.Flags.showTabbedConnectedDisplaySetting;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
@@ -30,7 +30,6 @@ import androidx.preference.Preference;
 import com.android.settings.R;
 import com.android.settings.connecteddevice.DevicePreferenceCallback;
 import com.android.settings.connecteddevice.display.ExternalDisplaySettingsConfiguration.DisplayListener;
-import com.android.settings.connecteddevice.display.ExternalDisplaySettingsConfiguration.Injector;
 import com.android.settings.core.SubSettingLauncher;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settingslib.RestrictedLockUtils;
@@ -51,11 +50,11 @@ public class ExternalDisplayUpdater {
     @Nullable
     private RestrictedPreference mPreference;
     @Nullable
-    private Injector mInjector;
+    private ConnectedDisplayInjector mInjector;
     private final DisplayListener mListener =  new DisplayListener() {
         @Override
         public void update(int displayId) {
-            scheduleUpdate();
+            refreshPreference();
         }
     };
 
@@ -69,11 +68,11 @@ public class ExternalDisplayUpdater {
      * Set the context to generate the {@link Preference}, so it could get the correct theme.
      */
     public void initPreference(@NonNull Context context) {
-        initPreference(context, new Injector(context));
+        initPreference(context, new ConnectedDisplayInjector(context));
     }
 
     @VisibleForTesting
-    void initPreference(@NonNull Context context, Injector injector) {
+    void initPreference(@NonNull Context context, ConnectedDisplayInjector injector) {
         mInjector = injector;
         mPreference = new RestrictedPreference(context, null /* AttributeSet */);
         mPreference.setTitle(R.string.external_display_settings_title);
@@ -83,16 +82,21 @@ public class ExternalDisplayUpdater {
         mPreference.setDisabledByAdmin(checkIfUsbDataSignalingIsDisabled(context));
         mPreference.setOnPreferenceClickListener((Preference p) -> {
             mMetricsFeatureProvider.logClickedPreference(p, mMetricsCategory);
-            // New version - uses a separate screen.
-            new SubSettingLauncher(context)
-                    .setDestination(ExternalDisplayPreferenceFragment.class.getName())
-                    .setTitleRes(R.string.external_display_settings_title)
-                    .setSourceMetricsCategory(mMetricsCategory)
-                    .launch();
+            if (showTabbedConnectedDisplaySetting()) {
+                new SubSettingLauncher(context)
+                        .setDestination(TabbedDisplayPreferenceFragment.class.getName())
+                        .setTitleRes(R.string.external_display_settings_title)
+                        .setSourceMetricsCategory(mMetricsCategory)
+                        .launch();
+            } else {
+                new SubSettingLauncher(context)
+                        .setDestination(ExternalDisplayPreferenceFragment.class.getName())
+                        .setTitleRes(R.string.external_display_settings_title)
+                        .setSourceMetricsCategory(mMetricsCategory)
+                        .launch();
+            }
             return true;
         });
-
-        scheduleUpdate();
     }
 
     /**
@@ -136,22 +140,25 @@ public class ExternalDisplayUpdater {
             return null;
         }
 
-        for (var display : mInjector.getEnabledDisplays()) {
-            if (display != null && isDisplayAllowed(display, mInjector)) {
+        var allDisplays = mInjector.getDisplays().stream().filter(
+                DisplayDevice::isConnectedDisplay).toList();
+        for (var display : allDisplays) {
+            if (display.isEnabled() == DisplayIsEnabled.YES) {
                 return context.getString(R.string.external_display_on);
             }
         }
-
-        for (var display : mInjector.getAllDisplays()) {
-            if (display != null && isDisplayAllowed(display, mInjector)) {
-                return context.getString(R.string.external_display_off);
-            }
+        if (mInjector.getFlags().displayTopologyPaneInDisplayList()) {
+            // In the new DisplayTopology settings, connected display settings should be hidden
+            // when there's no enabled connected displays
+            return null;
         }
-
-        return null;
+        return allDisplays.isEmpty() ? null : context.getString(R.string.external_display_off);
     }
 
-    private void scheduleUpdate() {
+    /**
+     * Updates preference, possibly removing it entirely.
+     */
+    public void refreshPreference() {
         if (mInjector == null) {
             return;
         }

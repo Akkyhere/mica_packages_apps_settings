@@ -20,13 +20,11 @@ import android.app.settings.SettingsEnums;
 import android.content.Context;
 
 import com.android.settings.R;
-import com.android.settings.dashboard.DashboardFragment;
-import com.android.settings.keyboard.Flags;
 import com.android.settings.search.BaseSearchIndexProvider;
 import com.android.settingslib.search.SearchIndexable;
 
 @SearchIndexable
-public class TouchpadSettingFragment extends DashboardFragment {
+public class TouchpadSettingFragment extends InputDeviceDashboardFragment {
     private static final String TAG = TouchpadSettingFragment.class.getSimpleName();
 
     @Override
@@ -48,8 +46,12 @@ public class TouchpadSettingFragment extends DashboardFragment {
             new BaseSearchIndexProvider(R.xml.touchpad_settings) {
                 @Override
                 protected boolean isPageSearchEnabled(Context context) {
-                    return Flags.keyboardAndTouchpadA11yNewPageEnabled()
-                            && InputPeripheralsSettingsUtils.isTouchpad();
+                    return InputPeripheralsSettingsUtils.isTouchpad();
                 }
             };
+
+    @Override
+    protected boolean needToFinishEarly() {
+        return isTouchpadDetached();
+    }
 }

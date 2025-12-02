@@ -17,10 +17,14 @@
 package com.android.settings.biometrics.face;
 
 import android.app.admin.DevicePolicyManager;
+import android.app.admin.EnforcingAdmin;
+import android.app.admin.PolicyEnforcementInfo;
 import android.content.Context;
 import android.hardware.biometrics.BiometricAuthenticator;
 import android.hardware.face.FaceManager;
 import android.os.UserManager;
+
+import androidx.annotation.Nullable;
 
 import com.android.settings.R;
 import com.android.settings.Settings;
@@ -55,6 +59,17 @@ public class FaceStatusUtils {
      */
     public EnforcedAdmin getDisablingAdmin() {
         return ParentalControlsUtils.parentConsentRequired(
+                mContext, BiometricAuthenticator.TYPE_FACE);
+    }
+
+    /**
+     * Returns the {@link EnforcingAdmin} if parental consent is required to change face settings.
+     *
+     * @return null if face settings does not require a parental consent.
+     */
+    @Nullable
+    public EnforcingAdmin getEnforcingAdmin() {
+        return ParentalControlsUtils.getParentalSupervisionAdmin(
                 mContext, BiometricAuthenticator.TYPE_FACE);
     }
 
@@ -98,19 +113,20 @@ public class FaceStatusUtils {
             return mContext.getString(
                     com.android.settingslib.widget.restricted.R.string.disabled_by_admin);
         } else {
+            int summaryNoneResId = Flags.biometricsOnboardingEducation()
+                    ? R.string.security_settings_face_preference_summary_none_new
+                    : R.string.security_settings_face_preference_summary_none;
             return mContext.getResources()
                     .getString(
                             hasEnrolled()
                                     ? R.string.security_settings_face_preference_summary
-                                    : R.string.security_settings_face_preference_summary_none);
+                                    : summaryNoneResId);
         }
     }
 
     /** Returns the class name of the Settings page corresponding to face settings. */
     public String getSettingsClassName() {
-        return hasEnrolled()
-                ? Settings.FaceSettingsInternalActivity.class.getName()
-                : FaceEnrollIntroductionInternal.class.getName();
+        return Settings.FaceSettingsInternalActivity.class.getName();
     }
 
     /** Returns whether at least one face template has been enrolled. */
@@ -120,8 +136,14 @@ public class FaceStatusUtils {
 
     /** Indicates if the face feature is enabled or disabled by the Device Admin. */
     private boolean shouldShowDisabledByAdminStr() {
-        return RestrictedLockUtilsInternal.checkIfKeyguardFeaturesDisabled(
-                        mContext, DevicePolicyManager.KEYGUARD_DISABLE_FACE, mUserId)
-                != null;
+        if (android.app.admin.flags.Flags.policyTransparencyRefactorEnabled()
+                && android.app.admin.flags.Flags.setKeyguardDisabledFeaturesCoexistence()) {
+            final PolicyEnforcementInfo policyInfo =
+                    RestrictedLockUtilsInternal.getEnforcingAdminsForKeyguardFeatures(mContext,
+                            DevicePolicyManager.KEYGUARD_DISABLE_FACE, mUserId);
+            return policyInfo != null && policyInfo.getMostImportantEnforcingAdmin() != null;
+        }
+        return RestrictedLockUtilsInternal.checkIfKeyguardFeaturesDisabled(mContext,
+                DevicePolicyManager.KEYGUARD_DISABLE_FACE, mUserId) != null;
     }
 }

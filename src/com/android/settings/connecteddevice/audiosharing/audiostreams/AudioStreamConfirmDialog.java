@@ -17,12 +17,13 @@
 package com.android.settings.connecteddevice.audiosharing.audiostreams;
 
 import static com.android.settings.connecteddevice.audiosharing.audiostreams.AudioStreamsDashboardFragment.KEY_BROADCAST_METADATA;
+import static com.android.settings.connecteddevice.audiosharing.audiostreams.AudioStreamsHelper.getEnabledScreenReaderServices;
+import static com.android.settings.connecteddevice.audiosharing.audiostreams.AudioStreamsHelper.setAccessibilityServiceOff;
 import static com.android.settingslib.bluetooth.BluetoothBroadcastUtils.SCHEME_BT_BROADCAST_METADATA;
 
 import android.app.Activity;
 import android.app.Dialog;
 import android.app.settings.SettingsEnums;
-import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothLeBroadcastMetadata;
 import android.content.Context;
 import android.content.Intent;
@@ -40,7 +41,8 @@ import com.android.settings.core.SubSettingLauncher;
 import com.android.settings.core.instrumentation.InstrumentedDialogFragment;
 import com.android.settingslib.bluetooth.BluetoothLeBroadcastMetadataExt;
 import com.android.settingslib.bluetooth.BluetoothUtils;
-import com.android.settingslib.bluetooth.LocalBluetoothLeBroadcastAssistant;
+import com.android.settingslib.bluetooth.CachedBluetoothDevice;
+import com.android.settingslib.utils.ThreadUtils;
 
 public class AudioStreamConfirmDialog extends InstrumentedDialogFragment {
     private static final String TAG = "AudioStreamConfirmDialog";
@@ -55,7 +57,7 @@ public class AudioStreamConfirmDialog extends InstrumentedDialogFragment {
     @Nullable
     private BluetoothLeBroadcastMetadata mBroadcastMetadata;
     @Nullable
-    private BluetoothDevice mConnectedDevice;
+    private CachedBluetoothDevice mConnectedDevice;
     private int mAudioStreamConfirmDialogId = SettingsEnums.PAGE_UNKNOWN;
 
     @Override
@@ -86,6 +88,10 @@ public class AudioStreamConfirmDialog extends InstrumentedDialogFragment {
             case SettingsEnums.DIALOG_AUDIO_STREAM_CONFIRM_FEATURE_UNSUPPORTED ->
                     getUnsupportedDialog();
             case SettingsEnums.DIALOG_AUDIO_STREAM_CONFIRM_NO_LE_DEVICE -> getNoLeDeviceDialog();
+            case SettingsEnums.DIALOG_AUDIO_STREAM_CONFIRM_TURN_OFF_TALKBACK ->
+                    getTurnOffTalkbackDialog();
+            case SettingsEnums.DIALOG_AUDIO_STREAM_CONFIRM_TURN_OFF_AUDIO_SHARING ->
+                    getTurnOffAudioSharingDialog();
             case SettingsEnums.DIALOG_AUDIO_STREAM_CONFIRM_LISTEN -> getConfirmDialog();
             default -> getErrorDialog();
         };
@@ -168,6 +174,56 @@ public class AudioStreamConfirmDialog extends InstrumentedDialogFragment {
                 .build();
     }
 
+    private Dialog getTurnOffTalkbackDialog() {
+        return new AudioStreamsDialogFragment.DialogBuilder(getActivity())
+                .setTitle(getString(R.string.audio_streams_dialog_turn_off_talkback_title))
+                .setSubTitle2(getString(R.string.audio_streams_dialog_turn_off_talkback_subtitle))
+                .setLeftButtonText(getString(R.string.cancel))
+                .setLeftButtonOnClickListener(
+                        unused -> {
+                            dismiss();
+                            if (mActivity != null) {
+                                mActivity.finish();
+                            }
+                        })
+                .setRightButtonText(
+                        getString(R.string.audio_streams_dialog_turn_off_talkback_button))
+                .setRightButtonOnClickListener(
+                        dialog -> {
+                            var unused = ThreadUtils.postOnBackgroundThread(() -> {
+                                var enabledScreenReader = getEnabledScreenReaderServices(mContext);
+                                if (!enabledScreenReader.isEmpty()) {
+                                    setAccessibilityServiceOff(mContext, enabledScreenReader);
+                                }
+                            });
+                            dismiss();
+                            if (mActivity != null) {
+                                mActivity.finish();
+                            }
+                        })
+                .build();
+    }
+
+    private Dialog getTurnOffAudioSharingDialog() {
+        return new AudioStreamsDialogFragment.DialogBuilder(getActivity())
+                .setTitle(getString(R.string.audio_streams_dialog_turn_off_audio_sharing_title))
+                .setSubTitle1(
+                        mBroadcastMetadata != null
+                                ? AudioStreamsHelper.getBroadcastName(mBroadcastMetadata)
+                                : "")
+                .setSubTitle2(
+                        getString(R.string.audio_streams_dialog_turn_off_audio_sharing_subtitle))
+                .setRightButtonText(getString(R.string.audio_streams_dialog_close))
+                .setRightButtonOnClickListener(
+                        unused -> {
+                            dismiss();
+                            if (mActivity != null) {
+                                mActivity.finish();
+                            }
+                        })
+                .build();
+    }
+
     private Dialog getNoLeDeviceDialog() {
         return new AudioStreamsDialogFragment.DialogBuilder(getActivity())
                 .setTitle(getString(R.string.audio_streams_dialog_no_le_device_title))
@@ -200,9 +256,9 @@ public class AudioStreamConfirmDialog extends InstrumentedDialogFragment {
     private void launchAudioStreamsActivity() {
         Bundle bundle = new Bundle();
         bundle.putParcelable(KEY_BROADCAST_METADATA, mBroadcastMetadata);
-        if (mActivity != null) {
-            new SubSettingLauncher(getActivity())
-                    .setTitleText(getString(R.string.audio_streams_activity_title))
+        if (mContext != null) {
+            new SubSettingLauncher(mContext)
+                    .setTitleText(mContext.getString(R.string.audio_streams_activity_title))
                     .setDestination(AudioStreamsDashboardFragment.class.getName())
                     .setArguments(bundle)
                     .setSourceMetricsCategory(getMetricsCategory())
@@ -234,6 +290,12 @@ public class AudioStreamConfirmDialog extends InstrumentedDialogFragment {
             if (!hasConnectedDevice) {
                 return SettingsEnums.DIALOG_AUDIO_STREAM_CONFIRM_NO_LE_DEVICE;
             }
+            if (!getEnabledScreenReaderServices(mContext).isEmpty()) {
+                return SettingsEnums.DIALOG_AUDIO_STREAM_CONFIRM_TURN_OFF_TALKBACK;
+            }
+            if (BluetoothUtils.isBroadcasting(Utils.getLocalBluetoothManager(mContext))) {
+                return SettingsEnums.DIALOG_AUDIO_STREAM_CONFIRM_TURN_OFF_AUDIO_SHARING;
+            }
             return hasMetadata
                     ? SettingsEnums.DIALOG_AUDIO_STREAM_CONFIRM_LISTEN
                     : SettingsEnums.DIALOG_AUDIO_STREAM_CONFIRM_DATA_ERROR;
@@ -243,23 +305,18 @@ public class AudioStreamConfirmDialog extends InstrumentedDialogFragment {
     }
 
     @Nullable
-    private BluetoothDevice getConnectedDevice() {
+    private CachedBluetoothDevice getConnectedDevice() {
         var localBluetoothManager = Utils.getLocalBluetoothManager(getActivity());
         if (localBluetoothManager == null) {
             return null;
         }
-        LocalBluetoothLeBroadcastAssistant assistant =
-                localBluetoothManager.getProfileManager().getLeAudioBroadcastAssistantProfile();
-        if (assistant == null) {
-            return null;
-        }
-        var devices = assistant.getAllConnectedDevices();
-        return devices.isEmpty() ? null : devices.get(0);
+        return AudioStreamsHelper.getCachedBluetoothDeviceInSharingOrLeConnected(
+                localBluetoothManager).orElse(null);
     }
 
     private String getConnectedDeviceName() {
         if (mConnectedDevice != null) {
-            String alias = mConnectedDevice.getAlias();
+            String alias = mConnectedDevice.getName();
             return TextUtils.isEmpty(alias) ? getString(DEFAULT_DEVICE_NAME) : alias;
         }
         Log.w(TAG, "getConnectedDeviceName : no connected device!");

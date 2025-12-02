@@ -22,11 +22,13 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.preference.Preference
 import androidx.preference.PreferenceScreen
 import com.android.settings.R
+import com.android.settings.Utils
 import com.android.settings.flags.Flags
-import com.android.settings.network.SubscriptionUtil
 import com.android.settingslib.spa.framework.util.collectLatestWithLifecycle
+import com.android.settingslib.spaprivileged.framework.common.userManager
 
 /** Preference controller for "Phone number" */
+// LINT.IfChange
 class MobileNetworkPhoneNumberPreferenceController
 @JvmOverloads
 constructor(
@@ -43,10 +45,12 @@ constructor(
 
     override fun getAvailabilityStatus(subId: Int): Int =
         when {
-            !Flags.isDualSimOnboardingEnabled() -> CONDITIONALLY_UNAVAILABLE
-            SubscriptionManager.isValidSubscriptionId(subId) &&
-                SubscriptionUtil.isSimHardwareVisible(mContext) -> AVAILABLE
-            else -> CONDITIONALLY_UNAVAILABLE
+            !Utils.isMobileDataCapable(mContext) && !Utils.isVoiceCapable(mContext) ->
+                UNSUPPORTED_ON_DEVICE
+            !mContext.userManager.isAdminUser -> DISABLED_FOR_USER
+            !Flags.isDualSimOnboardingEnabled() ||
+                !SubscriptionManager.isValidSubscriptionId(subId) -> CONDITIONALLY_UNAVAILABLE
+            else -> AVAILABLE
         }
 
     override fun displayPreference(screen: PreferenceScreen) {
@@ -56,12 +60,14 @@ constructor(
 
     override fun onViewCreated(viewLifecycleOwner: LifecycleOwner) {
         subscriptionRepository.phoneNumberFlow(mSubId).collectLatestWithLifecycle(
-            viewLifecycleOwner) { phoneNumber ->
-                preference.summary = phoneNumber ?: getStringUnknown()
-            }
+            viewLifecycleOwner
+        ) { phoneNumber ->
+            preference.summary = phoneNumber ?: getStringUnknown()
+        }
     }
 
     private fun getStringUnknown(): String {
         return mContext.getString(R.string.device_info_default)
     }
 }
+// LINT.ThenChange(MobileNetworkPhoneNumberPreference.java)

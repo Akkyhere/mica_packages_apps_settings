@@ -16,6 +16,7 @@
 
 package com.android.settings.spa.network
 
+import android.content.Context
 import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,21 +26,35 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.settings.R
+import com.android.settings.network.SatelliteRepository
 import com.android.settings.network.telephony.MobileDataRepository
 import com.android.settings.network.telephony.subscriptionManager
+import com.android.settingslib.spa.framework.compose.HighlightBox
 import com.android.settingslib.spa.framework.compose.rememberContext
+import com.android.settingslib.spa.search.SearchablePage.SearchItem
 import com.android.settingslib.spa.widget.preference.SwitchPreference
 import com.android.settingslib.spa.widget.preference.SwitchPreferenceModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+private const val MOBILE_DATA_HIGHLIGHT_KEY = "mobile_data"
+
+fun getMobileDataSearchItem(context: Context) =
+    SearchItem(
+        highlightItemKey = MOBILE_DATA_HIGHLIGHT_KEY,
+        itemTitle = context.getString(R.string.mobile_data_settings_title),
+    )
+
 @Composable
 fun MobileDataSwitchPreference(subId: Int) {
-    MobileDataSwitchPreference(
-        subId = subId,
-        mobileDataRepository = rememberContext(::MobileDataRepository),
-        setMobileData = setMobileDataImpl(subId),
-    )
+    HighlightBox(highlightItemKey = MOBILE_DATA_HIGHLIGHT_KEY) {
+        MobileDataSwitchPreference(
+            subId = subId,
+            mobileDataRepository = rememberContext(::MobileDataRepository),
+            satelliteRepository = rememberContext(::SatelliteRepository),
+            setMobileData = setMobileDataImpl(subId),
+        )
+    }
 }
 
 @VisibleForTesting
@@ -47,19 +62,24 @@ fun MobileDataSwitchPreference(subId: Int) {
 fun MobileDataSwitchPreference(
     subId: Int,
     mobileDataRepository: MobileDataRepository,
+    satelliteRepository: SatelliteRepository,
     setMobileData: (newChecked: Boolean) -> Unit,
 ) {
     val mobileDataSummary = stringResource(id = R.string.mobile_data_settings_summary)
     val isMobileDataEnabled by
-        remember(subId) { mobileDataRepository.isMobileDataEnabledFlow(subId) }
-            .collectAsStateWithLifecycle(initialValue = null)
-
+    remember(subId) { mobileDataRepository.isMobileDataEnabledFlow(subId) }
+        .collectAsStateWithLifecycle(initialValue = null)
+    val satelliteStarted by remember {
+        satelliteRepository.getIsSessionStartedFlow()
+    }.collectAsStateWithLifecycle(initialValue = false)
     SwitchPreference(
         object : SwitchPreferenceModel {
             override val title = stringResource(id = R.string.mobile_data_settings_title)
             override val summary = { mobileDataSummary }
             override val checked = { isMobileDataEnabled }
             override val onCheckedChange = setMobileData
+            override val changeable: () -> Boolean
+                get() = { !satelliteStarted }
         }
     )
 }

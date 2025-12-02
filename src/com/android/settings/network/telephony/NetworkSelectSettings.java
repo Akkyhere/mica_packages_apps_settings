@@ -44,13 +44,13 @@ import androidx.preference.PreferenceCategory;
 
 import com.android.internal.annotations.Initializer;
 import com.android.internal.telephony.OperatorInfo;
-import com.android.internal.telephony.flags.Flags;
 import com.android.settings.R;
 import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.network.telephony.scan.NetworkScanRepository;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 import com.android.settingslib.utils.ThreadUtils;
+import com.android.settingslib.widget.ZeroStatePreference;
 
 import com.google.common.collect.ImmutableList;
 
@@ -82,7 +82,7 @@ public class NetworkSelectSettings extends DashboardFragment {
     @VisibleForTesting
     NetworkOperatorPreference mSelectedPreference;
     private View mProgressHeader;
-    private Preference mStatusMessagePreference;
+    private ZeroStatePreference mStatusMessagePreference;
     @VisibleForTesting
     @NonNull
     List<CellInfo> mCellInfoList = ImmutableList.of();
@@ -117,8 +117,6 @@ public class NetworkSelectSettings extends DashboardFragment {
         mSubId = getSubId();
 
         mPreferenceCategory = getPreferenceCategory(PREF_KEY_NETWORK_OPERATORS);
-        mStatusMessagePreference = new Preference(context);
-        mStatusMessagePreference.setSelectable(false);
         mSelectedPreference = null;
         mTelephonyManager = getTelephonyManager(context, mSubId);
         mSatelliteManager = getSatelliteManager(context);
@@ -343,10 +341,6 @@ public class NetworkSelectSettings extends DashboardFragment {
      */
     @VisibleForTesting
     protected List<String> getSatellitePlmnsForCarrierWrapper() {
-        if (!Flags.carrierEnabledSatelliteFlag()) {
-            return new ArrayList<>();
-        }
-
         if (mSatelliteManager != null) {
             return mSatelliteManager.getSatellitePlmnsForCarrier(mSubId);
         } else {
@@ -492,6 +486,11 @@ public class NetworkSelectSettings extends DashboardFragment {
     }
 
     private void addMessagePreference(int messageId) {
+        if (mStatusMessagePreference == null) {
+            mStatusMessagePreference = new ZeroStatePreference(getContext());
+            mStatusMessagePreference.setIcon(R.drawable.cell_tower_24px);
+            mStatusMessagePreference.setSelectable(false);
+        }
         mStatusMessagePreference.setTitle(messageId);
         mPreferenceCategory.removeAll();
         mPreferenceCategory.addPreference(mStatusMessagePreference);

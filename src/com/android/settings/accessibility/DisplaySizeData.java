@@ -19,6 +19,8 @@ package com.android.settings.accessibility;
 import android.content.Context;
 import android.content.res.Resources;
 
+import androidx.annotation.NonNull;
+
 import com.android.settingslib.display.DisplayDensityUtils;
 
 import java.util.Arrays;
@@ -28,13 +30,18 @@ import java.util.stream.Collectors;
 /**
  * Data class for storing the configurations related to the display size.
  */
-class DisplaySizeData extends PreviewSizeData<Integer> {
+// LINT.IfChange
+public class DisplaySizeData extends PreviewSizeData<Integer> {
     private final DisplayDensityUtils mDensity;
 
     DisplaySizeData(Context context) {
+        this(context, new DisplayDensityUtils(context));
+    }
+
+    public DisplaySizeData(@NonNull Context context, @NonNull DisplayDensityUtils util) {
         super(context);
 
-        mDensity = new DisplayDensityUtils(getContext());
+        mDensity = util;
         final int initialIndex = mDensity.getCurrentIndex();
         if (initialIndex < 0) {
             // Failed to obtain default density, which means we failed to
@@ -54,7 +61,7 @@ class DisplaySizeData extends PreviewSizeData<Integer> {
     }
 
     @Override
-    void commit(int currentProgress) {
+    public void commit(int currentProgress) {
         final int densityDpi = getValues().get(currentProgress);
         if (densityDpi == getDefaultValue()) {
             mDensity.clearForcedDisplayDensity();
@@ -62,4 +69,22 @@ class DisplaySizeData extends PreviewSizeData<Integer> {
             mDensity.setForcedDisplayDensity(currentProgress);
         }
     }
+
+    /**
+     * Gets the density at the given progress level as a percentage of the default density.
+     *
+     * @return The density as a percentage of the default density.
+     */
+    public float getDensityPercentage(int currentProgress) {
+        final int selectedDensity = getValues().get(currentProgress);
+        final int defaultDensity = mDensity.getInitialDensity();
+
+        if (defaultDensity <= 0) {
+            // Avoid division by zero and return a fallback.
+            return 100f;
+        }
+
+        return ((float) selectedDensity / defaultDensity) * 100f;
+    }
 }
+// LINT.ThenChange(/src/com/android/settings/accessibility/textreading/data/DisplaySizeDataStore.kt,)

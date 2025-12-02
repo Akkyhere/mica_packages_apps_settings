@@ -20,12 +20,15 @@ import android.content.Context
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.settings.R
+import com.android.settings.network.SatelliteRepository
 import com.android.settings.network.telephony.MobileDataRepository
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.emptyFlow
@@ -48,11 +51,18 @@ class MobileDataSwitchPreferenceTest {
     private val mockMobileDataRepository =
         mock<MobileDataRepository> { on { isMobileDataEnabledFlow(any()) } doReturn emptyFlow() }
 
+    private val mockSatelliteRepository =
+        mock<SatelliteRepository> { on { getIsSessionStartedFlow() } doReturn flowOf(false) }
+
     @Test
     fun title_displayed() {
         composeTestRule.setContent {
             CompositionLocalProvider(LocalContext provides context) {
-                MobileDataSwitchPreference(SUB_ID, mockMobileDataRepository) {}
+                MobileDataSwitchPreference(
+                    SUB_ID,
+                    mockMobileDataRepository,
+                    mockSatelliteRepository,
+                ) {}
             }
         }
 
@@ -65,7 +75,11 @@ class MobileDataSwitchPreferenceTest {
     fun summary_displayed() {
         composeTestRule.setContent {
             CompositionLocalProvider(LocalContext provides context) {
-                MobileDataSwitchPreference(SUB_ID, mockMobileDataRepository) {}
+                MobileDataSwitchPreference(
+                    SUB_ID,
+                    mockMobileDataRepository,
+                    mockSatelliteRepository,
+                ) {}
             }
         }
 
@@ -82,7 +96,11 @@ class MobileDataSwitchPreferenceTest {
         var newCheckedCalled: Boolean? = null
         composeTestRule.setContent {
             CompositionLocalProvider(LocalContext provides context) {
-                MobileDataSwitchPreference(SUB_ID, mockMobileDataRepository) {
+                MobileDataSwitchPreference(
+                    SUB_ID,
+                    mockMobileDataRepository,
+                    mockSatelliteRepository,
+                ) {
                     newCheckedCalled = it
                 }
             }
@@ -93,6 +111,50 @@ class MobileDataSwitchPreferenceTest {
             .performClick()
 
         assertThat(newCheckedCalled).isTrue()
+    }
+
+    @Test
+    fun changeable_satelliteIsStarted_notEnabled() {
+        mockMobileDataRepository.stub {
+            on { isMobileDataEnabledFlow(SUB_ID) } doReturn flowOf(true)
+        }
+
+        mockSatelliteRepository.stub { on { getIsSessionStartedFlow() } doReturn flowOf(true) }
+
+        composeTestRule.setContent {
+            CompositionLocalProvider(LocalContext provides context) {
+                MobileDataSwitchPreference(
+                    SUB_ID,
+                    mockMobileDataRepository,
+                    mockSatelliteRepository,
+                ) {}
+            }
+        }
+
+        composeTestRule
+            .onNodeWithText(context.getString(R.string.mobile_data_settings_title))
+            .assertIsNotEnabled()
+    }
+
+    @Test
+    fun changeable_satelliteIsNotStarted_Changeable_enabled() {
+        mockMobileDataRepository.stub {
+            on { isMobileDataEnabledFlow(SUB_ID) } doReturn flowOf(true)
+        }
+
+        composeTestRule.setContent {
+            CompositionLocalProvider(LocalContext provides context) {
+                MobileDataSwitchPreference(
+                    SUB_ID,
+                    mockMobileDataRepository,
+                    mockSatelliteRepository,
+                ) {}
+            }
+        }
+
+        composeTestRule
+            .onNodeWithText(context.getString(R.string.mobile_data_settings_title))
+            .assertIsEnabled()
     }
 
     private companion object {

@@ -30,15 +30,21 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.robolectric.Shadows.shadowOf;
 
+import android.app.Application;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.fingerprint.Fingerprint;
 import android.hardware.fingerprint.FingerprintManager;
 import android.os.UserManager;
+import android.platform.test.annotations.DisableFlags;
+import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.lifecycle.LifecycleOwner;
 import androidx.preference.Preference;
+import androidx.test.core.app.ApplicationProvider;
 
 import com.android.internal.widget.LockPatternUtils;
 import com.android.settings.R;
@@ -51,6 +57,7 @@ import com.android.settingslib.utils.StringUtil;
 
 import org.junit.Before;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -58,7 +65,6 @@ import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
-import org.robolectric.shadows.ShadowApplication;
 
 import java.util.Collections;
 
@@ -66,6 +72,8 @@ import java.util.Collections;
 @Config(shadows = {ShadowRestrictedLockUtilsInternal.class})
 public class FingerprintStatusPreferenceControllerTest {
 
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
     @Mock
     private LockPatternUtils mLockPatternUtils;
     @Mock
@@ -90,9 +98,10 @@ public class FingerprintStatusPreferenceControllerTest {
         mLifecycle = new Lifecycle(mLifecycleOwner);
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT)).thenReturn(true);
-        ShadowApplication.getInstance().setSystemService(Context.FINGERPRINT_SERVICE,
-                mFingerprintManager);
-        ShadowApplication.getInstance().setSystemService(Context.USER_SERVICE, mUm);
+        shadowOf((Application) ApplicationProvider.getApplicationContext())
+                .setSystemService(Context.FINGERPRINT_SERVICE, mFingerprintManager);
+        shadowOf((Application) ApplicationProvider.getApplicationContext())
+                .setSystemService(Context.USER_SERVICE, mUm);
         mPreference = new Preference(mContext);
         mFeatureFactory = FakeFeatureFactory.setupForTest();
         when(mFeatureFactory.securityFeatureProvider.getLockPatternUtils(mContext))
@@ -125,13 +134,27 @@ public class FingerprintStatusPreferenceControllerTest {
     }
 
     @Test
-    public void updateState_noFingerprint_shouldShowDefaultSummary() {
+    @DisableFlags(com.android.settings.flags.Flags.FLAG_BIOMETRICS_ONBOARDING_EDUCATION)
+    public void updateState_noFingerprint_flagOff_shouldShowDefaultSummary() {
         when(mFingerprintManager.isHardwareDetected()).thenReturn(true);
 
         mController.updateState(mPreference);
 
         assertThat(mPreference.getSummary()).isEqualTo(
                 mContext.getString(R.string.security_settings_fingerprint_preference_summary_none));
+        assertThat(mPreference.isVisible()).isTrue();
+    }
+
+    @Test
+    @EnableFlags(com.android.settings.flags.Flags.FLAG_BIOMETRICS_ONBOARDING_EDUCATION)
+    public void updateState_noFingerprint_flagOn_shouldShowDefaultSummary() {
+        when(mFingerprintManager.isHardwareDetected()).thenReturn(true);
+
+        mController.updateState(mPreference);
+
+        assertThat(mPreference.getSummary()).isEqualTo(
+                mContext.getString(
+                        R.string.security_settings_fingerprint_preference_summary_none_new));
         assertThat(mPreference.isVisible()).isTrue();
     }
 
@@ -164,6 +187,7 @@ public class FingerprintStatusPreferenceControllerTest {
         reset(admin);
 
         mController.updateStateInternal(null /* enforcedAdmin */);
-        verify(restrictedPreference, never()).setDisabledByAdmin(any());
+        verify(restrictedPreference, never())
+                .setDisabledByAdmin((RestrictedLockUtils.EnforcedAdmin) any());
     }
 }

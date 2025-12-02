@@ -25,15 +25,21 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.preference.PreferenceScreen;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.settings.R;
+import com.android.settings.accessibility.screenmagnification.ui.MagnificationPreferenceFragment;
+import com.android.settingslib.widget.SettingsThemeHelper;
+import com.android.settingslib.widget.TopIntroPreference;
 
 import com.google.android.setupcompat.template.FooterBarMixin;
 import com.google.android.setupdesign.GlifPreferenceLayout;
 
 public class ToggleScreenMagnificationPreferenceFragmentForSetupWizard
-        extends ToggleScreenMagnificationPreferenceFragment {
+        extends MagnificationPreferenceFragment {
 
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
@@ -60,23 +66,29 @@ public class ToggleScreenMagnificationPreferenceFragmentForSetupWizard
         hidePreferenceSettingComponents();
     }
 
+    @Override
+    protected RecyclerView.Adapter onCreateAdapter(PreferenceScreen preferenceScreen) {
+        if (SettingsThemeHelper.isExpressiveTheme(requireContext())) {
+            return new PreferenceAdapterInSuw(preferenceScreen);
+        }
+        return super.onCreateAdapter(preferenceScreen);
+    }
+
     /**
      * Hide the magnification preference settings in the SuW's vision settings.
      */
     private void hidePreferenceSettingComponents() {
         // Intro
-        if (mTopIntroPreference != null) {
-            mTopIntroPreference.setVisible(false);
-        }
-        // Setting of magnification type
-        if (mSettingsPreference != null) {
-            mSettingsPreference.setVisible(false);
+        TopIntroPreference topIntroPreference = findPreference("top_intro");
+        if (topIntroPreference != null) {
+            topIntroPreference.setVisible(false);
         }
     }
 
+    @NonNull
     @Override
-    public RecyclerView onCreateRecyclerView(LayoutInflater inflater, ViewGroup parent,
-            Bundle savedInstanceState) {
+    public RecyclerView onCreateRecyclerView(@NonNull LayoutInflater inflater,
+            @NonNull ViewGroup parent, @Nullable Bundle savedInstanceState) {
         if (parent instanceof GlifPreferenceLayout) {
             final GlifPreferenceLayout layout = (GlifPreferenceLayout) parent;
             return AccessibilityFragmentUtils.addCollectionInfoToAccessibilityDelegate(
@@ -95,12 +107,14 @@ public class ToggleScreenMagnificationPreferenceFragmentForSetupWizard
         // Log the final choice in value if it's different from the previous value.
         Bundle args = getArguments();
         if ((args != null) && args.containsKey(AccessibilitySettings.EXTRA_CHECKED)) {
-            if (mToggleServiceSwitchPreference.isChecked() != args.getBoolean(
+            ShortcutPreference shortcutPreference = findPreference(
+                    getShortcutPreferenceController().getPreferenceKey());
+            if (shortcutPreference.isChecked() != args.getBoolean(
                     AccessibilitySettings.EXTRA_CHECKED)) {
                 // TODO: Distinguish between magnification modes
                 mMetricsFeatureProvider.action(getContext(),
                         SettingsEnums.SUW_ACCESSIBILITY_TOGGLE_SCREEN_MAGNIFICATION,
-                        mToggleServiceSwitchPreference.isChecked());
+                        shortcutPreference.isChecked());
             }
         }
         super.onStop();

@@ -33,16 +33,16 @@ import android.widget.SearchView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.view.ViewCompat;
-import androidx.preference.PreferenceCategory;
+import androidx.preference.PreferenceScreen;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.android.internal.app.AppLocaleCollector;
 import com.android.internal.app.LocaleHelper;
 import com.android.internal.app.LocaleStore;
 import com.android.settings.R;
 import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.search.BaseSearchIndexProvider;
 import com.android.settingslib.core.AbstractPreferenceController;
-import com.android.settingslib.core.lifecycle.Lifecycle;
 import com.android.settingslib.widget.TopIntroPreference;
 
 import com.google.android.material.appbar.AppBarLayout;
@@ -75,7 +75,9 @@ public class RegionAndNumberingSystemPickerFragment extends DashboardFragment im
     private static final String KEY_PREFERENCE_APP_LOCALE_SUGGESTED_LIST =
             "app_locale_suggested_list";
     private static final String KEY_TOP_INTRO_PREFERENCE = "top_intro_region";
+    private static final String KEY_PREFERENCE_SCREEN = "key_system_language_picker_page";
     private static final String EXTRA_EXPAND_SEARCH_VIEW = "expand_search_view";
+    private static final String EXTRA_SEARCH_VIEW_QUERY = "search_view_query";
 
     @Nullable
     private SearchView mSearchView = null;
@@ -104,6 +106,9 @@ public class RegionAndNumberingSystemPickerFragment extends DashboardFragment im
     private CharSequence mPrefix;
     @SuppressWarnings("NullAway")
     private String mPackageName;
+    @Nullable
+    private CharSequence mPreviousSearch = null;
+    private boolean mIsSearchChanged;
 
     @Override
     public void onCreate(@NonNull Bundle icicle) {
@@ -118,22 +123,23 @@ public class RegionAndNumberingSystemPickerFragment extends DashboardFragment im
         mExpandSearch = mActivity.getIntent().getBooleanExtra(EXTRA_EXPAND_SEARCH_VIEW, false);
         if (icicle != null) {
             mExpandSearch = icicle.getBoolean(EXTRA_EXPAND_SEARCH_VIEW);
+            mPreviousSearch = icicle.getCharSequence(EXTRA_SEARCH_VIEW_QUERY);
         }
 
         Log.d(TAG, "onCreate, mIsNumberingMode = " + mIsNumberingMode);
-        if (!mIsNumberingMode) {
-            mActivity.setTitle(R.string.region_selection_title);
-        }
+
+        PreferenceScreen screen = findPreference(KEY_PREFERENCE_SCREEN);
+        screen.setTitle(mIsNumberingMode ? R.string.numbering_system_selection_title
+                : R.string.region_selection_title);
 
         TopIntroPreference topIntroPreference = findPreference(KEY_TOP_INTRO_PREFERENCE);
         if (topIntroPreference != null && mIsNumberingMode) {
             topIntroPreference.setTitle(R.string.top_intro_numbering_system_title);
         }
 
-        if (mSystemLocaleAllListPreferenceController != null) {
-            mOriginalLocaleInfos =
-                    mSystemLocaleAllListPreferenceController.getSupportedLocaleList();
-        }
+        mOriginalLocaleInfos = mSystemLocaleAllListPreferenceController != null
+                ? mSystemLocaleAllListPreferenceController.getSupportedLocaleList()
+                : mAppLocaleAllListPreferenceController.getSupportedLocaleList();
     }
 
     @Override
@@ -155,6 +161,7 @@ public class RegionAndNumberingSystemPickerFragment extends DashboardFragment im
         super.onSaveInstanceState(outState);
         if (mSearchView != null) {
             outState.putBoolean(EXTRA_EXPAND_SEARCH_VIEW, !mSearchView.isIconified());
+            outState.putCharSequence(EXTRA_SEARCH_VIEW_QUERY, mSearchView.getQuery());
         }
     }
 
@@ -172,6 +179,15 @@ public class RegionAndNumberingSystemPickerFragment extends DashboardFragment im
             mSearchView.setMaxWidth(Integer.MAX_VALUE);
             if (mExpandSearch) {
                 searchMenuItem.expandActionView();
+            }
+            // Restore previous search status
+            if (!TextUtils.isEmpty(mPreviousSearch)) {
+                searchMenuItem.expandActionView();
+                mSearchView.setIconified(false);
+                mSearchView.setActivated(true);
+                mSearchView.setQuery(mPreviousSearch, true /* submit */);
+            } else {
+                mSearchView.setQuery(null, false /* submit */);
             }
         }
     }
@@ -199,9 +215,13 @@ public class RegionAndNumberingSystemPickerFragment extends DashboardFragment im
                 results.values = mOriginalLocaleInfos;
                 results.count = mOriginalLocaleInfos.size();
             } else {
+                mIsSearchChanged = true;
                 // TODO: decide if we should use the string's locale
                 List<LocaleStore.LocaleInfo> newList = new ArrayList<>(mOriginalLocaleInfos);
-                newList.addAll(mSystemLocaleAllListPreferenceController.getSuggestedLocaleList());
+                List<LocaleStore.LocaleInfo> suggestedList = TextUtils.isEmpty(mPackageName)
+                        ? mSystemLocaleAllListPreferenceController.getSuggestedLocaleList()
+                        : mAppLocaleSuggestedListPreferenceController.getSuggestedLocaleList();
+                newList.addAll(suggestedList);
                 Locale locale = Locale.getDefault();
                 String prefixString = LocaleHelper.normalizeForSearch(prefix.toString(), locale);
                 final int count = newList.size();
@@ -228,9 +248,8 @@ public class RegionAndNumberingSystemPickerFragment extends DashboardFragment im
 
         @Override
         protected void publishResults(CharSequence constraint, FilterResults results) {
-            if (mSystemLocaleAllListPreferenceController == null
-                    || mSuggestedListPreferenceController == null) {
-                Log.d(TAG, "publishResults(), can not get preference.");
+            if (!mIsSearchChanged) {
+                Log.d(TAG, "Do not update UI if search is not changed.");
                 return;
             }
 
@@ -240,8 +259,15 @@ public class RegionAndNumberingSystemPickerFragment extends DashboardFragment im
                 mRecyclerView.post(() -> mRecyclerView.scrollToPosition(0));
             }
 
-            mSystemLocaleAllListPreferenceController.onSearchListChanged(mLocaleOptions, mPrefix);
-            mSuggestedListPreferenceController.onSearchListChanged(mLocaleOptions, mPrefix);
+            if (TextUtils.isEmpty(mPackageName)) {
+                mSystemLocaleAllListPreferenceController.onSearchListChanged(mLocaleOptions,
+                        mPrefix);
+                mSuggestedListPreferenceController.onSearchListChanged(mLocaleOptions, mPrefix);
+            } else {
+                mAppLocaleSuggestedListPreferenceController.onSearchListChanged(mLocaleOptions,
+                        mPrefix);
+                mAppLocaleAllListPreferenceController.onSearchListChanged(mLocaleOptions, mPrefix);
+            }
         }
 
         // TODO: decide if this is enough, or we want to use a BreakIterator...
@@ -324,16 +350,19 @@ public class RegionAndNumberingSystemPickerFragment extends DashboardFragment im
                     mIsNumberingMode);
             mSystemLocaleAllListPreferenceController = new SystemLocaleAllListPreferenceController(
                     context, KEY_PREFERENCE_SYSTEM_LOCALE_LIST, mLocaleInfo, mIsNumberingMode);
+            mSuggestedListPreferenceController.setFragmentManager(getFragmentManager());
+            mSystemLocaleAllListPreferenceController.setFragmentManager(getFragmentManager());
             controllers.add(mSuggestedListPreferenceController);
             controllers.add(mSystemLocaleAllListPreferenceController);
         } else {
+            AppLocaleCollector appLocaleCollector = new AppLocaleCollector(context, mPackageName);
             mAppLocaleSuggestedListPreferenceController =
                     new AppLocaleSuggestedListPreferenceController(context,
                             KEY_PREFERENCE_APP_LOCALE_SUGGESTED_LIST, mPackageName,
-                            mIsNumberingMode, mLocaleInfo);
+                            mIsNumberingMode, mLocaleInfo, getActivity(), appLocaleCollector);
             mAppLocaleAllListPreferenceController = new AppLocaleAllListPreferenceController(
                     context, KEY_PREFERENCE_APP_LOCALE_LIST, mPackageName, mIsNumberingMode,
-                    mLocaleInfo);
+                    mLocaleInfo, getActivity(), appLocaleCollector);
             controllers.add(mAppLocaleSuggestedListPreferenceController);
             controllers.add(mAppLocaleAllListPreferenceController);
         }

@@ -50,12 +50,15 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.android.settings.core.InstrumentedPreferenceFragment;
 import com.android.settings.core.instrumentation.InstrumentedDialogFragment;
 import com.android.settings.flags.Flags;
+import com.android.settings.restriction.UserRestrictionBindingHelper;
 import com.android.settings.support.actionbar.HelpResourceProvider;
 import com.android.settings.widget.HighlightablePreferenceGroupAdapter;
 import com.android.settings.widget.LoadingViewController;
 import com.android.settingslib.CustomDialogPreferenceCompat;
 import com.android.settingslib.CustomEditTextPreferenceCompat;
 import com.android.settingslib.core.instrumentation.Instrumentable;
+import com.android.settingslib.metadata.PreferenceSearchIndexablesProvider;
+import com.android.settingslib.preference.PreferenceScreenBindingHelper;
 import com.android.settingslib.preference.PreferenceScreenCreator;
 import com.android.settingslib.search.Indexable;
 import com.android.settingslib.widget.LayoutPreference;
@@ -130,6 +133,8 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
     public HighlightablePreferenceGroupAdapter mAdapter;
     private boolean mPreferenceHighlighted = false;
 
+    private @Nullable UserRestrictionBindingHelper mUserRestrictionBindingHelper;
+
     @Override
     public void onAttach(Context context) {
         if (shouldSkipForInitialSUW() && !WizardManagerHelper.isDeviceProvisioned(getContext())) {
@@ -148,6 +153,13 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
             mPreferenceHighlighted = icicle.getBoolean(SAVE_HIGHLIGHTED_KEY);
         }
         HighlightablePreferenceGroupAdapter.adjustInitialExpandedChildCount(this /* host */);
+
+        if (isCatalystEnabled()) {
+            PreferenceScreenBindingHelper helper = getPreferenceScreenBindingHelper();
+            if (helper != null) {
+                mUserRestrictionBindingHelper = new UserRestrictionBindingHelper(this, helper);
+            }
+        }
     }
 
     @Override
@@ -397,6 +409,7 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
             Intent intent = activity != null ? activity.getIntent() : null;
             key = intent != null ? intent.getStringExtra(EXTRA_FRAGMENT_ARG_KEY) : null;
         }
+        key = PreferenceSearchIndexablesProvider.Companion.getHighlightKey(key);
         mAdapter = new HighlightablePreferenceGroupAdapter(preferenceScreen, key,
                 mPreferenceHighlighted);
         return mAdapter;
@@ -463,7 +476,9 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
      * users won't misunderstand its meaning.
      */
     public final void finishFragment() {
-        getActivity().onBackPressed();
+        if (getActivity() != null) {
+            getActivity().onBackPressed();
+        }
     }
 
     // Some helpers for functions used by the settings fragments when they were activities
@@ -498,6 +513,15 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
      */
     protected PackageManager getPackageManager() {
         return getActivity().getPackageManager();
+    }
+
+    @Override
+    public void onDestroy() {
+        if (mUserRestrictionBindingHelper != null) {
+            mUserRestrictionBindingHelper.close();
+            mUserRestrictionBindingHelper = null;
+        }
+        super.onDestroy();
     }
 
     @Override

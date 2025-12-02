@@ -23,13 +23,14 @@ import android.app.ActivityManager;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.content.res.Configuration;
-import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.provider.SearchIndexableResource;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 import androidx.fragment.app.Fragment;
 import androidx.preference.Preference;
@@ -41,13 +42,11 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.window.embedding.ActivityEmbeddingController;
 
 import com.android.settings.R;
-import com.android.settings.Utils;
 import com.android.settings.activityembedding.ActivityEmbeddingRulesController;
 import com.android.settings.activityembedding.ActivityEmbeddingUtils;
 import com.android.settings.core.RoundCornerPreferenceAdapter;
 import com.android.settings.core.SubSettingLauncher;
 import com.android.settings.dashboard.DashboardFragment;
-import com.android.settings.flags.Flags;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settings.search.BaseSearchIndexProvider;
 import com.android.settings.support.SupportPreferenceController;
@@ -56,6 +55,9 @@ import com.android.settings.widget.HomepagePreferenceLayoutHelper.HomepagePrefer
 import com.android.settingslib.core.instrumentation.Instrumentable;
 import com.android.settingslib.drawer.Tile;
 import com.android.settingslib.search.SearchIndexable;
+import com.android.settingslib.widget.SettingsThemeHelper;
+
+import java.util.List;
 
 @SearchIndexable(forTarget = MOBILE)
 public class TopLevelSettings extends DashboardFragment implements SplitLayoutListener,
@@ -88,7 +90,7 @@ public class TopLevelSettings extends DashboardFragment implements SplitLayoutLi
 
     @Override
     protected int getPreferenceScreenResId() {
-        return Flags.homepageRevamp() ? R.xml.top_level_settings_v2 : R.xml.top_level_settings;
+        return getPreferenceLayoutResId(getContext());
     }
 
     @Override
@@ -210,21 +212,6 @@ public class TopLevelSettings extends DashboardFragment implements SplitLayoutLi
     }
 
     @Override
-    public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
-        super.onCreatePreferences(savedInstanceState, rootKey);
-        if (Flags.homepageRevamp()) {
-            return;
-        }
-        int tintColor = Utils.getHomepageIconColor(getContext());
-        iteratePreferences(preference -> {
-            Drawable icon = preference.getIcon();
-            if (icon != null) {
-                icon.setTint(tintColor);
-            }
-        });
-    }
-
-    @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         highlightPreferenceIfNeeded();
@@ -264,34 +251,6 @@ public class TopLevelSettings extends DashboardFragment implements SplitLayoutLi
         if (recyclerView != null) {
             recyclerView.setPadding(padding, 0, padding, 0);
         }
-    }
-
-    /** Updates the preference internal paddings */
-    public void updatePreferencePadding(boolean isTwoPane) {
-        iteratePreferences(new PreferenceJob() {
-            private int mIconPaddingStart;
-            private int mTextPaddingStart;
-
-            @Override
-            public void init() {
-                mIconPaddingStart = getResources().getDimensionPixelSize(isTwoPane
-                        ? R.dimen.homepage_preference_icon_padding_start_two_pane
-                        : R.dimen.homepage_preference_icon_padding_start);
-                mTextPaddingStart = getResources().getDimensionPixelSize(isTwoPane
-                        ? R.dimen.homepage_preference_text_padding_start_two_pane
-                        : R.dimen.homepage_preference_text_padding_start);
-            }
-
-            @Override
-            public void doForEach(Preference preference) {
-                if (preference instanceof HomepagePreferenceLayout) {
-                    ((HomepagePreferenceLayout) preference).getHelper()
-                            .setIconPaddingStart(mIconPaddingStart);
-                    ((HomepagePreferenceLayout) preference).getHelper()
-                            .setTextPaddingStart(mTextPaddingStart);
-                }
-            }
-        });
     }
 
     /** Returns a {@link TopLevelHighlightMixin} that performs highlighting */
@@ -344,10 +303,7 @@ public class TopLevelSettings extends DashboardFragment implements SplitLayoutLi
             return mHighlightMixin.onCreateAdapter(this, preferenceScreen, mScrollNeeded);
         }
 
-        if (Flags.homepageRevamp()) {
-            return new RoundCornerPreferenceAdapter(preferenceScreen);
-        }
-        return super.onCreateAdapter(preferenceScreen);
+        return new RoundCornerPreferenceAdapter(preferenceScreen);
     }
 
     @Override
@@ -392,11 +348,23 @@ public class TopLevelSettings extends DashboardFragment implements SplitLayoutLi
         void doForEach(Preference preference);
     }
 
+    private static int getPreferenceLayoutResId(Context context) {
+        return SettingsThemeHelper.isExpressiveTheme(context)
+                ? R.xml.top_level_settings_expressive
+                : R.xml.top_level_settings;
+    }
+
     public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
-            new BaseSearchIndexProvider(
-                    Flags.homepageRevamp()
-                            ? R.xml.top_level_settings_v2
-                            : R.xml.top_level_settings) {
+            new BaseSearchIndexProvider() {
+
+                @Override
+                @NonNull
+                public List<SearchIndexableResource> getXmlResourcesToIndex(
+                        @NonNull Context context, boolean enabled) {
+                    SearchIndexableResource sir = new SearchIndexableResource(context);
+                    sir.xmlResId = getPreferenceLayoutResId(context);
+                    return List.of(sir);
+                }
 
                 @Override
                 protected boolean isPageSearchEnabled(Context context) {

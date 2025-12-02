@@ -63,8 +63,7 @@ public class AutoPinConfirmPreferenceController extends AbstractPreferenceContro
 
     @Override
     public boolean isAvailable() {
-        return LockPatternUtils.isAutoPinConfirmFeatureAvailable() && isPinLock()
-                && isPinLengthEligibleForAutoConfirmation();
+        return isPinLock() && isPinLengthEligibleForAutoConfirmation();
     }
 
     @Override
@@ -95,7 +94,6 @@ public class AutoPinConfirmPreferenceController extends AbstractPreferenceContro
                 .setRequestCode(newState
                         ? ScreenLockSettings.AUTO_PIN_SETTING_ENABLING_REQUEST_CODE
                         : ScreenLockSettings.AUTO_PIN_SETTING_DISABLING_REQUEST_CODE)
-                .setTitle(mContext.getString(R.string.lock_screen_auto_pin_confirm_title))
                 .setDescription(newState
                         ? mContext.getString(R.string.auto_confirm_on_pin_verify_description)
                         : mContext.getString(R.string.auto_confirm_off_pin_verify_description))

@@ -20,16 +20,17 @@ import android.app.settings.SettingsEnums.ACTION_BATTERY_LEVEL
 import android.content.Context
 import androidx.annotation.VisibleForTesting
 import androidx.preference.Preference
-import com.android.settings.PreferenceActionMetricsProvider
 import com.android.settings.R
 import com.android.settings.contract.KEY_BATTERY_LEVEL
 import com.android.settings.fuelgauge.BatteryBroadcastReceiver.BatteryUpdateType.BATTERY_NOT_PRESENT
+import com.android.settings.metrics.PreferenceActionMetricsProvider
 import com.android.settingslib.Utils
 import com.android.settingslib.datastore.KeyValueStore
 import com.android.settingslib.datastore.NoOpKeyedObservable
 import com.android.settingslib.datastore.Permissions
 import com.android.settingslib.fuelgauge.BatteryUtils
 import com.android.settingslib.metadata.IntRangeValuePreference
+import com.android.settingslib.metadata.PreferenceAvailabilityProvider
 import com.android.settingslib.metadata.PreferenceLifecycleContext
 import com.android.settingslib.metadata.PreferenceLifecycleProvider
 import com.android.settingslib.metadata.PreferenceMetadata
@@ -42,6 +43,7 @@ import com.android.settingslib.widget.UsageProgressBarPreference
 class BatteryHeaderPreference :
     IntRangeValuePreference,
     PreferenceBinding,
+    PreferenceAvailabilityProvider,
     PreferenceActionMetricsProvider,
     PreferenceLifecycleProvider {
 
@@ -52,6 +54,9 @@ class BatteryHeaderPreference :
 
     override val title: Int
         get() = R.string.summary_placeholder
+
+    override val indexable
+        get() = false
 
     override val preferenceActionMetrics: Int
         get() = ACTION_BATTERY_LEVEL
@@ -68,7 +73,8 @@ class BatteryHeaderPreference :
         }
     }
 
-    override fun isIndexable(context: Context) = false
+    override fun isAvailable(context: Context) =
+        com.android.settings.Utils.isBatteryPresent(context)
 
     override fun onCreate(context: PreferenceLifecycleContext) {
         super.onCreate(context)

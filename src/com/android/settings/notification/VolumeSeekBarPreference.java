@@ -47,7 +47,6 @@ public class VolumeSeekBarPreference extends SeekBarPreference {
 
     private final InteractionJankMonitor mJankMonitor = InteractionJankMonitor.getInstance();
 
-    protected SeekBar mSeekBar;
     private int mStream;
     private SeekBarVolumizer mVolumizer;
     @VisibleForTesting
@@ -70,28 +69,28 @@ public class VolumeSeekBarPreference extends SeekBarPreference {
     public VolumeSeekBarPreference(Context context, AttributeSet attrs, int defStyleAttr,
             int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
-        setLayoutResource(R.layout.preference_volume_slider);
+        setLayoutResource(R.layout.preference_volume_seekbar);
         mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mSeekBarVolumizerFactory = new SeekBarVolumizerFactory(context);
     }
 
     public VolumeSeekBarPreference(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        setLayoutResource(R.layout.preference_volume_slider);
+        setLayoutResource(R.layout.preference_volume_seekbar);
         mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mSeekBarVolumizerFactory = new SeekBarVolumizerFactory(context);
     }
 
     public VolumeSeekBarPreference(Context context, AttributeSet attrs) {
         super(context, attrs);
-        setLayoutResource(R.layout.preference_volume_slider);
+        setLayoutResource(R.layout.preference_volume_seekbar);
         mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mSeekBarVolumizerFactory = new SeekBarVolumizerFactory(context);
     }
 
     public VolumeSeekBarPreference(Context context) {
         super(context);
-        setLayoutResource(R.layout.preference_volume_slider);
+        setLayoutResource(R.layout.preference_volume_seekbar);
         mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mSeekBarVolumizerFactory = new SeekBarVolumizerFactory(context);
     }
@@ -115,17 +114,20 @@ public class VolumeSeekBarPreference extends SeekBarPreference {
 
     @Override
     public void onDetached() {
+        destroyVolumizer();
+        super.onDetached();
+    }
+
+    private void destroyVolumizer() {
         if (mVolumizer != null) {
             mVolumizer.stop();
             mVolumizer = null;
         }
-        super.onDetached();
     }
 
     @Override
     public void onBindViewHolder(PreferenceViewHolder view) {
         super.onBindViewHolder(view);
-        mSeekBar = (SeekBar) view.findViewById(com.android.internal.R.id.seekbar);
         mIconView = (ImageView) view.findViewById(com.android.internal.R.id.icon);
         mSuppressionTextView = (TextView) view.findViewById(R.id.suppression_text);
         mTitle = (TextView) view.findViewById(com.android.internal.R.id.title);
@@ -133,15 +135,20 @@ public class VolumeSeekBarPreference extends SeekBarPreference {
     }
 
     protected void onBindViewHolder() {
-        boolean isEnabled = isEnabled();
-        mSeekBar.setEnabled(isEnabled);
-        if (mVolumizer == null) {
-            createSeekBarVolumizer();
+        if (isEnabled()) {
+            if (mVolumizer == null) {
+                createSeekBarVolumizer();
+            }
+            // note that setSeekBar will update enabled state!
+            mVolumizer.setSeekBar(mSeekBar);
+        } else {
+            // destroy volumizer to avoid updateSeekBar reset enabled state
+            destroyVolumizer();
+            mSeekBar.setEnabled(false);
         }
-        mVolumizer.setSeekBar(mSeekBar);
         updateIconView();
         updateSuppressionText();
-        if (isEnabled && mListener != null) {
+        if (mListener != null) {
             mListener.onUpdateMuteState();
         }
     }

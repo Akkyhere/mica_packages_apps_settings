@@ -16,7 +16,6 @@
 
 package com.android.settings.connecteddevice.audiosharing.audiostreams;
 
-import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
@@ -24,11 +23,11 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
@@ -43,10 +42,10 @@ import java.util.function.Consumer;
 /** A dialog fragment for constructing and showing audio stream dialogs. */
 public class AudioStreamsDialogFragment extends InstrumentedDialogFragment {
     private static final String TAG = "AudioStreamsDialogFragment";
-    private final DialogBuilder mDialogBuilder;
+    @Nullable private DialogBuilder mDialogBuilder;
     private int mDialogId = SettingsEnums.PAGE_UNKNOWN;
 
-    AudioStreamsDialogFragment(DialogBuilder dialogBuilder, int dialogId) {
+    void init(DialogBuilder dialogBuilder, int dialogId) {
         mDialogBuilder = dialogBuilder;
         mDialogId = dialogId;
     }
@@ -58,6 +57,11 @@ public class AudioStreamsDialogFragment extends InstrumentedDialogFragment {
 
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
+        if (mDialogBuilder == null) {
+            // Will not show the dialog if mDialogBuilder is null.
+            setShowsDialog(false);
+            return new AlertDialog.Builder(requireActivity()).create();
+        }
         return mDialogBuilder.build();
     }
 
@@ -68,16 +72,24 @@ public class AudioStreamsDialogFragment extends InstrumentedDialogFragment {
      * @param dialogBuilder The builder for constructing the dialog.
      * @param dialogId The dialog settings enum for logging
      */
-    public static void show(Fragment host, DialogBuilder dialogBuilder, int dialogId) {
+    public static void show(@Nullable Fragment host, DialogBuilder dialogBuilder, int dialogId) {
+        if (host == null) {
+            return;
+        }
         if (!host.isAdded()) {
             Log.w(TAG, "The host fragment is not added to the activity!");
             return;
         }
         FragmentManager manager = host.getChildFragmentManager();
-        (new AudioStreamsDialogFragment(dialogBuilder, dialogId)).show(manager, TAG);
+        var dialogFragment = new AudioStreamsDialogFragment();
+        dialogFragment.init(dialogBuilder, dialogId);
+        dialogFragment.show(manager, TAG);
     }
 
-    static void dismissAll(Fragment host) {
+    static void dismissAll(@Nullable Fragment host) {
+        if (host == null) {
+            return;
+        }
         if (!host.isAdded()) {
             Log.w(TAG, "The host fragment is not added to the activity!");
             return;
@@ -207,8 +219,7 @@ public class AudioStreamsDialogFragment extends InstrumentedDialogFragment {
                     LayoutInflater.from(mContext)
                             .inflate(R.xml.bluetooth_audio_streams_dialog, /* parent= */ null);
 
-            AlertDialog dialog = mBuilder.setView(rootView).setCancelable(false).create();
-            dialog.setCanceledOnTouchOutside(false);
+            AlertDialog.Builder dialogBuilder = mBuilder.setView(rootView).setCancelable(false);
 
             TextView title = rootView.requireViewById(R.id.dialog_title);
             title.setText(mTitle);
@@ -224,27 +235,25 @@ public class AudioStreamsDialogFragment extends InstrumentedDialogFragment {
                 subTitle2.setVisibility(View.VISIBLE);
             }
             if (!Strings.isNullOrEmpty(mLeftButtonText)) {
-                Button leftButton = rootView.requireViewById(R.id.left_button);
-                leftButton.setText(mLeftButtonText);
-                leftButton.setVisibility(View.VISIBLE);
-                leftButton.setOnClickListener(
-                        unused -> {
+                dialogBuilder.setNegativeButton(
+                        mLeftButtonText,
+                        (dialog, which) -> {
                             if (mLeftButtonOnClickListener != null) {
-                                mLeftButtonOnClickListener.accept(dialog);
+                                mLeftButtonOnClickListener.accept((AlertDialog) dialog);
                             }
                         });
             }
             if (!Strings.isNullOrEmpty(mRightButtonText)) {
-                Button rightButton = rootView.requireViewById(R.id.right_button);
-                rightButton.setText(mRightButtonText);
-                rightButton.setVisibility(View.VISIBLE);
-                rightButton.setOnClickListener(
-                        unused -> {
+                dialogBuilder.setPositiveButton(
+                        mRightButtonText,
+                        (dialog, which) -> {
                             if (mRightButtonOnClickListener != null) {
-                                mRightButtonOnClickListener.accept(dialog);
+                                mRightButtonOnClickListener.accept((AlertDialog) dialog);
                             }
                         });
             }
+            var dialog = dialogBuilder.create();
+            dialog.setCanceledOnTouchOutside(false);
 
             return dialog;
         }

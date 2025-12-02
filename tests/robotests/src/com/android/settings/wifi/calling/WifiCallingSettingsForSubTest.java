@@ -54,7 +54,6 @@ import androidx.lifecycle.LifecycleOwner;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
-import com.android.internal.telephony.flags.Flags;
 import com.android.settings.R;
 import com.android.settings.SettingsActivity;
 import com.android.settings.network.ims.MockWifiCallingQueryImsState;
@@ -63,6 +62,7 @@ import com.android.settings.network.telephony.wificalling.IWifiCallingRepository
 import com.android.settings.testutils.shadow.ShadowFragment;
 import com.android.settings.widget.SettingsMainSwitchBar;
 import com.android.settings.widget.SettingsMainSwitchPreference;
+import com.android.settingslib.widget.TopIntroPreference;
 
 import kotlin.Unit;
 import kotlin.jvm.functions.Function1;
@@ -87,8 +87,8 @@ public class WifiCallingSettingsForSubTest {
 
     private static final String SWITCH_BAR = "wifi_calling_switch_bar";
     private static final String BUTTON_WFC_MODE = "wifi_calling_mode";
-    private static final String BUTTON_WFC_ROAMING_MODE = "wifi_calling_roaming_mode";
     private static final String PREFERENCE_NO_OPTIONS_DESC = "no_options_description";
+    private static final String BUTTON_WFC_ROAMING_MODE = "wifi_calling_roaming_mode";
     private static final String TEST_EMERGENCY_ADDRESS_CARRIER_APP =
             "com.android.settings/.wifi.calling.TestEmergencyAddressCarrierApp";
     private static final String PREFERENCE_EMERGENCY_ADDRESS = "emergency_address_key";
@@ -117,7 +117,7 @@ public class WifiCallingSettingsForSubTest {
     @Mock
     private SettingsMainSwitchPreference mSwitchBarPreference;
     @Mock
-    private LinkifyDescriptionPreference mDescriptionView;
+    private TopIntroPreference mDescriptionView;
     @Mock
     private ListWithEntrySummaryPreference mButtonWfcMode;
     @Mock
@@ -173,7 +173,6 @@ public class WifiCallingSettingsForSubTest {
         mFragment.onAttach(mContext);
         mFragment.onCreate(null);
         mFragment.onActivityCreated(null);
-        mSetFlagsRule.disableFlags(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG);
     }
 
     private void setDefaultCarrierConfigValues() {
@@ -247,7 +246,6 @@ public class WifiCallingSettingsForSubTest {
 
     @Test
     public void onResume_overrideWfcRoamingModeWhileUsingNTN_shouldDisableWfcRoaming() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG);
         mBundle.putBoolean(
                 CarrierConfigManager.KEY_USE_WFC_HOME_NETWORK_MODE_IN_ROAMING_NETWORK_BOOL, false);
         mBundle.putBoolean(CarrierConfigManager.KEY_EDITABLE_WFC_ROAMING_MODE_BOOL, true);

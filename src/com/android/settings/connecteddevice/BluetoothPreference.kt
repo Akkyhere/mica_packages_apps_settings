@@ -28,13 +28,16 @@ import android.os.UserManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.preference.Preference
-import com.android.settings.PreferenceActionMetricsProvider
-import com.android.settings.PreferenceRestrictionMixin
 import com.android.settings.R
 import com.android.settings.contract.KEY_BLUETOOTH
+import com.android.settings.metrics.PreferenceActionMetricsProvider
 import com.android.settings.network.SatelliteRepository.Companion.isSatelliteOn
 import com.android.settings.network.SatelliteWarningDialogActivity
+import com.android.settings.restriction.PreferenceRestrictionMixin
 import com.android.settings.widget.MainSwitchBarMetadata
+import com.android.settings.widget.MainSwitchBarPreference
+import com.android.settingslib.RestrictedPreferenceHelper
+import com.android.settingslib.RestrictedPreferenceHelperProvider
 import com.android.settingslib.WirelessUtils
 import com.android.settingslib.datastore.AbstractKeyedDataObservable
 import com.android.settingslib.datastore.KeyValueStore
@@ -50,6 +53,13 @@ class BluetoothPreference(private val bluetoothDataStore: BluetoothDataStore) :
     PreferenceActionMetricsProvider,
     PreferenceRestrictionMixin,
     Preference.OnPreferenceChangeListener {
+
+    override fun createWidget(context: Context): MainSwitchBarPreference =
+        object : MainSwitchBarPreference(context, this), RestrictedPreferenceHelperProvider {
+            override fun getRestrictedPreferenceHelper(): RestrictedPreferenceHelper {
+                return RestrictedPreferenceHelper(context, this, null)
+            }
+        }
 
     override val key
         get() = KEY

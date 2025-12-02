@@ -16,9 +16,7 @@
 
 package com.android.settings.communal;
 
-import static com.android.settings.core.BasePreferenceController.AVAILABLE;
-
-import static com.google.common.truth.Truth.assertThat;
+import static com.android.systemui.Flags.FLAG_GLANCEABLE_HUB_V2;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -34,7 +32,6 @@ import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 
 import com.android.settings.R;
-import com.android.settings.flags.Flags;
 import com.android.settings.testutils.shadow.SettingsShadowResources;
 import com.android.settings.testutils.shadow.ShadowUserManager;
 
@@ -66,6 +63,7 @@ public class CommunalPreferenceControllerTest {
     }
 
     @Test
+    @DisableFlags(FLAG_GLANCEABLE_HUB_V2)
     public void isAvailable_communalEnabled_shouldBeTrueForPrimaryUser() {
         setCommunalEnabled(true);
         mShadowUserManager.setUserForeground(true);
@@ -73,6 +71,7 @@ public class CommunalPreferenceControllerTest {
     }
 
     @Test
+    @DisableFlags(FLAG_GLANCEABLE_HUB_V2)
     public void isAvailable_communalEnabled_shouldBeFalseForSecondaryUser() {
         setCommunalEnabled(true);
         mShadowUserManager.setUserForeground(false);
@@ -80,6 +79,7 @@ public class CommunalPreferenceControllerTest {
     }
 
     @Test
+    @DisableFlags(FLAG_GLANCEABLE_HUB_V2)
     public void isAvailable_communalDisabled_shouldBeFalseForPrimaryUser() {
         setCommunalEnabled(false);
         mShadowUserManager.setUserForeground(true);
@@ -87,47 +87,14 @@ public class CommunalPreferenceControllerTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_ENABLE_HUB_MODE_SETTINGS_ON_MOBILE)
-    public void isAvailable_communalOnMobileEnabled_shouldBeTrueForPrimaryUser() {
-        setCommunalEnabled(false);
-        setCommunalOnMobileEnabled(true);
-        mShadowUserManager.setUserForeground(true);
-        assertThat(mController.getAvailabilityStatus()).isEqualTo(AVAILABLE);
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_ENABLE_HUB_MODE_SETTINGS_ON_MOBILE)
-    public void isAvailable_communalOnMobileEnabled_shouldBeFalseForSecondaryUser() {
-        setCommunalEnabled(false);
-        setCommunalOnMobileEnabled(true);
-        mShadowUserManager.setUserForeground(false);
-        assertFalse(mController.isAvailable());
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_ENABLE_HUB_MODE_SETTINGS_ON_MOBILE)
-    public void isAvailable_communalOnMobileDisabled_shouldBeFalseForPrimaryUser() {
-        setCommunalEnabled(false);
-        setCommunalOnMobileEnabled(false);
-        mShadowUserManager.setUserForeground(true);
-        assertFalse(mController.isAvailable());
-    }
-
-    @Test
-    @DisableFlags(Flags.FLAG_ENABLE_HUB_MODE_SETTINGS_ON_MOBILE)
-    public void isAvailable_hubModeSettingsOnMobileFlagDisabled_shouldBeFalseForPrimaryUser() {
-        setCommunalEnabled(false);
-        setCommunalOnMobileEnabled(true);
+    @EnableFlags(FLAG_GLANCEABLE_HUB_V2)
+    public void isAvailable_glanceableHubV2Enabled_shouldBeFalseForPrimaryUser() {
+        setCommunalEnabled(true);
         mShadowUserManager.setUserForeground(true);
         assertFalse(mController.isAvailable());
     }
 
     private void setCommunalEnabled(boolean enabled) {
         SettingsShadowResources.overrideResource(R.bool.config_show_communal_settings, enabled);
-    }
-
-    private void setCommunalOnMobileEnabled(boolean enabled) {
-        SettingsShadowResources.overrideResource(
-                R.bool.config_show_communal_settings_mobile, enabled);
     }
 }

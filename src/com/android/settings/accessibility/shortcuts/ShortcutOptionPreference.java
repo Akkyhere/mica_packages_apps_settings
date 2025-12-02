@@ -98,6 +98,7 @@ public class ShortcutOptionPreference extends CheckBoxPreference {
                 // Follow the Motion Stoppable requirement by using a finite animation.
                 imageView.setRepeatCount(0);
                 LottieColorUtils.applyDynamicColors(imageView.getContext(), imageView);
+                LottieColorUtils.applyMaterialColor(getContext(), imageView);
                 imageView.playAnimation();
             } else {
                 imageView.setImageResource(mIntroImageResId);
@@ -108,6 +109,7 @@ public class ShortcutOptionPreference extends CheckBoxPreference {
         if (summaryView != null) {
             mSummaryTextLineHeight = summaryView.getLineHeight();
             summaryView.setMovementMethod(LinkMovementMethod.getInstance());
+            summaryView.setFocusable(false);
         }
 
         syncSummaryView(holder);

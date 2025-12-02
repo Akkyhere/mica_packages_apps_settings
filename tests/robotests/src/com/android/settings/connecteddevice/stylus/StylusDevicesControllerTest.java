@@ -40,6 +40,7 @@ import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.content.pm.UserProperties;
@@ -167,6 +168,8 @@ public class StylusDevicesControllerTest {
                 any(PackageManager.ApplicationInfoFlags.class))).thenReturn(
                         DEFAULT_NOTES_APP);
         when(mPm.getApplicationLabel(eq(DEFAULT_NOTES_APP))).thenReturn(NOTES_APP_LABEL);
+        when(mPm.getPackageInfo(eq(mContext.getPackageName()), anyInt()))
+                .thenReturn(new PackageInfo());
 
         when(mPm.getUserBadgeForDensityNoBackground(any(), anyInt())).thenReturn(mIcon);
         when(mUserManager.getUsers()).thenReturn(Arrays.asList(new UserInfo(0, "default", 0)));
@@ -187,46 +190,6 @@ public class StylusDevicesControllerTest {
         setDefaultNotesForWorkProfileEnabled(true);
 
         mController = new StylusDevicesController(mContext, mInputDevice, null, mLifecycle);
-    }
-
-    @Test
-    public void isDeviceStylus_noDevices_false() {
-        assertThat(StylusDevicesController.isDeviceStylus(null, null)).isFalse();
-    }
-
-    @Test
-    public void isDeviceStylus_nonStylusInputDevice_false() {
-        InputDevice inputDevice = new InputDevice.Builder()
-                .setSources(InputDevice.SOURCE_DPAD)
-                .build();
-
-        assertThat(StylusDevicesController.isDeviceStylus(inputDevice, null)).isFalse();
-    }
-
-    @Test
-    public void isDeviceStylus_stylusInputDevice_true() {
-        InputDevice inputDevice = new InputDevice.Builder()
-                .setSources(InputDevice.SOURCE_STYLUS)
-                .build();
-
-        assertThat(StylusDevicesController.isDeviceStylus(inputDevice, null)).isTrue();
-    }
-
-    @Test
-    public void isDeviceStylus_nonStylusBluetoothDevice_false() {
-        when(mBluetoothDevice.getMetadata(BluetoothDevice.METADATA_DEVICE_TYPE)).thenReturn(
-                BluetoothDevice.DEVICE_TYPE_WATCH.getBytes());
-
-        assertThat(StylusDevicesController.isDeviceStylus(null, mCachedBluetoothDevice)).isFalse();
-    }
-
-    @Test
-    public void isDeviceStylus_stylusBluetoothDevice_true() {
-        when(mBluetoothDevice.getMetadata(BluetoothDevice.METADATA_DEVICE_TYPE)).thenReturn(
-                BluetoothDevice.DEVICE_TYPE_STYLUS.getBytes());
-        when(mCachedBluetoothDevice.getDevice()).thenReturn(mBluetoothDevice);
-
-        assertThat(StylusDevicesController.isDeviceStylus(null, mCachedBluetoothDevice)).isTrue();
     }
 
     @Test

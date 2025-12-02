@@ -84,6 +84,7 @@ public class ConfirmDeviceCredentialActivity extends FragmentActivity {
             "biometric_prompt_negative_button_text";
     public static final String BIOMETRIC_PROMPT_HIDE_BACKGROUND =
             "biometric_prompt_hide_background";
+    public static final String EXTRA_DATA = "extra_data";
     public static final int BIOMETRIC_LOCKOUT_ERROR_RESULT = 100;
 
     public static class InternalActivity extends ConfirmDeviceCredentialActivity {
@@ -108,6 +109,7 @@ public class ConfirmDeviceCredentialActivity extends FragmentActivity {
     private boolean mGoingToBackground;
     private boolean mWaitingForBiometricCallback;
     private int mBiometricsAuthenticators;
+    private Intent mIntentData;
 
     private Executor mExecutor = (runnable -> {
         mHandler.post(runnable);
@@ -132,7 +134,7 @@ public class ConfirmDeviceCredentialActivity extends FragmentActivity {
                         showConfirmCredentials();
                     } else {
                         Log.i(TAG, "Finishing, device credential not requested");
-                        if (Flags.mandatoryBiometrics()
+                        if (!Flags.bpFallbackOptions()
                                 && errorCode == BiometricPrompt.BIOMETRIC_ERROR_LOCKOUT_PERMANENT) {
                             setResult(BIOMETRIC_LOCKOUT_ERROR_RESULT);
                         }
@@ -158,7 +160,7 @@ public class ConfirmDeviceCredentialActivity extends FragmentActivity {
                         ConfirmDeviceCredentialActivity.this);
             }
 
-            setResult(Activity.RESULT_OK);
+            setResult(Activity.RESULT_OK, mIntentData);
             finish();
         }
 
@@ -207,6 +209,7 @@ public class ConfirmDeviceCredentialActivity extends FragmentActivity {
         mBiometricsAuthenticators = intent.getIntExtra(BIOMETRIC_PROMPT_AUTHENTICATORS,
                 BiometricManager.Authenticators.DEVICE_CREDENTIAL
                         | BiometricManager.Authenticators.BIOMETRIC_WEAK);
+        mIntentData = intent.getParcelableExtra(EXTRA_DATA, Intent.class);
         final String negativeButtonText = intent.getStringExtra(
                 BIOMETRIC_PROMPT_NEGATIVE_BUTTON_TEXT);
         final boolean frp =
@@ -256,8 +259,7 @@ public class ConfirmDeviceCredentialActivity extends FragmentActivity {
             promptInfo.setRealCallerForConfirmDeviceCredentialActivity(getCallingActivity());
         }
 
-        if (android.multiuser.Flags.enablePrivateSpaceFeatures()
-                && android.multiuser.Flags.usePrivateSpaceIconInBiometricPrompt()
+        if (android.multiuser.Flags.usePrivateSpaceIconInBiometricPrompt()
                 && hasSetBiometricDialogAdvanced(mContext, getLaunchedFromUid())
         ) {
             final int iconResId = intent.getIntExtra(CUSTOM_BIOMETRIC_PROMPT_LOGO_RES_ID_KEY, 0);
@@ -371,9 +373,7 @@ public class ConfirmDeviceCredentialActivity extends FragmentActivity {
                 showConfirmCredentials();
                 launchedCDC = true;
             }
-        } else if (android.os.Flags.allowPrivateProfile()
-                && android.multiuser.Flags.enablePrivateSpaceFeatures()
-                && userProperties != null
+        } else if (userProperties != null
                 && userProperties.isAuthAlwaysRequiredToDisableQuietMode()
                 && isInternalActivity()) {
             // Force verification path is required to be invoked as we might need to verify the
@@ -505,9 +505,7 @@ public class ConfirmDeviceCredentialActivity extends FragmentActivity {
     }
 
     private boolean doesUserStateEnforceStrongAuth(int userId) {
-        if (android.os.Flags.allowPrivateProfile()
-                && android.multiuser.Flags.enableBiometricsToUnlockPrivateSpace()
-                && android.multiuser.Flags.enablePrivateSpaceFeatures()) {
+        if (android.multiuser.Flags.enableBiometricsToUnlockPrivateSpace()) {
             // Check if CE storage for user is locked since biometrics can't unlock fbe/keystore of
             // the profile user using verifyTiedProfileChallenge. Biometrics can still be used if
             // the user is stopped with delayed locking (i.e., with storage unlocked), so the user

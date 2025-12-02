@@ -20,6 +20,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.location.LocationManager;
 
+import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
 import com.android.settings.R;
@@ -32,6 +33,7 @@ import com.android.settingslib.widget.BannerMessagePreference;
 /**
  * Controller to take the user to location settings page
  */
+// LINT.IfChange
 public class TwilightLocationPreferenceController extends BasePreferenceController {
     private final LocationManager mLocationManager;
     private final MetricsFeatureProvider mMetricsFeatureProvider;
@@ -61,9 +63,15 @@ public class TwilightLocationPreferenceController extends BasePreferenceControll
                 : AVAILABLE_UNSEARCHABLE;
     }
 
+    @Override
+    public void updateState(Preference preference) {
+        preference.setVisible(!mLocationManager.isLocationEnabled());
+    }
+
     private void launchLocationSettings() {
         final Intent intent = new Intent();
         intent.setClass(mContext, Settings.LocationSettingsActivity.class);
         mContext.startActivity(intent);
     }
 }
+// LINT.ThenChange(darkmode/TwilightLocationPreference.kt)

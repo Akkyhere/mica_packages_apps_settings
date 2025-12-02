@@ -27,10 +27,8 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.verify;
 
-import android.app.Flags;
 import android.content.Context;
 import android.net.Uri;
-import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.service.notification.SystemZenRules;
 import android.service.notification.ZenModeConfig;
@@ -44,6 +42,7 @@ import com.android.settings.R;
 import com.android.settings.dashboard.DashboardFragment;
 import com.android.settingslib.notification.modes.TestModeBuilder;
 import com.android.settingslib.notification.modes.ZenMode;
+import com.android.settingslib.notification.modes.ZenModeSchedules;
 import com.android.settingslib.notification.modes.ZenModesBackend;
 
 import org.junit.Before;
@@ -58,7 +57,6 @@ import org.robolectric.RobolectricTestRunner;
 import java.util.Calendar;
 
 @RunWith(RobolectricTestRunner.class)
-@EnableFlags(Flags.FLAG_MODES_UI)
 public class ZenModeTriggerAddPreferenceControllerTest {
 
     private static final ZenMode CUSTOM_MANUAL_MODE = new TestModeBuilder()
@@ -168,9 +166,9 @@ public class ZenModeTriggerAddPreferenceControllerTest {
         verify(mBackend).updateMode(captor.capture());
         ZenMode updatedMode = captor.getValue();
         assertThat(updatedMode.getType()).isEqualTo(TYPE_SCHEDULE_TIME);
-        assertThat(updatedMode.getRule().getConditionId()).isEqualTo(scheduleUri);
-        assertThat(updatedMode.getRule().getTriggerDescription()).isNotEmpty();
-        assertThat(updatedMode.getRule().getOwner()).isEqualTo(
+        assertThat(ZenModeSchedules.getTimeSchedule(updatedMode)).isEqualTo(scheduleInfo);
+        assertThat(updatedMode.getTriggerDescription()).isNotEmpty();
+        assertThat(updatedMode.getOwner().conditionProvider()).isEqualTo(
                 ZenModeConfig.getScheduleConditionProvider());
     }
 }
